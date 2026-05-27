@@ -1,0 +1,218 @@
+import { createFileRoute, useParams } from "@tanstack/react-router";
+import { useChat } from "@ai-sdk/react";
+import { DefaultChatTransport, type UIMessage } from "ai";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { supabase } from "@/integrations/supabase/client";
+import { getThreadMessages } from "@/lib/threads.functions";
+import {
+  Conversation,
+  ConversationContent,
+  ConversationScrollButton,
+} from "@/components/ai-elements/conversation";
+import { Message, MessageContent, MessageResponse } from "@/components/ai-elements/message";
+import {
+  PromptInput,
+  PromptInputTextarea,
+  PromptInputFooter,
+  PromptInputSubmit,
+} from "@/components/ai-elements/prompt-input";
+import { Shimmer } from "@/components/ai-elements/shimmer";
+import nanumoniAvatar from "@/assets/nanumoni-avatar.jpg";
+import { toast } from "sonner";
+
+export const Route = createFileRoute("/chat/$threadId")({
+  component: ChatThread,
+});
+
+const SUGGESTIONS = [
+  "Nanumoni, ajke dinner ki khabo under 200 Tk for 4 people?",
+  "I have type-2 diabetes — suggest a simple lunch plate.",
+  "What should I eat for iron deficiency? I'm vegetarian.",
+  "Ramadan iftar ideas that won't spike sugar?",
+];
+
+function ChatThread() {
+  const { threadId } = useParams({ from: "/chat/$threadId" });
+  const getMsgs = useServerFn(getThreadMessages);
+  const initialQ = useQuery({
+    queryKey: ["thread-messages", threadId],
+    queryFn: () => getMsgs({ data: { threadId } }),
+  });
+
+  const initialMessages = useMemo<UIMessage[]>(() => {
+    if (!initialQ.data) return [];
+    return initialQ.data.map((m) => ({
+      id: m.id,
+      role: m.role as UIMessage["role"],
+      parts: m.parts as unknown as UIMessage["parts"],
+    }));
+  }, [initialQ.data]);
+
+  if (initialQ.isLoading) {
+    return (
+      <div className="grid flex-1 place-items-center">
+        <Shimmer>Loading conversation…</Shimmer>
+      </div>
+    );
+  }
+
+  return <ChatInner key={threadId} threadId={threadId} initialMessages={initialMessages} />;
+}
+
+function ChatInner({
+  threadId,
+  initialMessages,
+}: {
+  threadId: string;
+  initialMessages: UIMessage[];
+}) {
+  const transport = useMemo(
+    () =>
+      new DefaultChatTransport({
+        api: "/api/chat",
+        fetch: async (url, init) => {
+          const { data } = await supabase.auth.getSession();
+          const token = data.session?.access_token;
+          const headers = new Headers(init?.headers);
+          if (token) headers.set("Authorization", `Bearer ${token}`);
+          const originalBody = init?.body ? JSON.parse(init.body as string) : {};
+          return fetch(url, {
+            ...init,
+            headers,
+            body: JSON.stringify({ ...originalBody, threadId }),
+          });
+        },
+      }),
+    [threadId],
+  );
+
+  const { messages, sendMessage, status } = useChat({
+    id: threadId,
+    messages: initialMessages,
+    transport,
+    onError: (err) => toast.error(err.message || "Nanumoni couldn't reply. Please try again."),
+  });
+
+  const [input, setInput] = useState("");
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, [threadId, status]);
+
+  const isBusy = status === "submitted" || status === "streaming";
+
+  async function submit(text: string) {
+    const trimmed = text.trim();
+    if (!trimmed || isBusy) return;
+    setInput("");
+    await sendMessage({ text: trimmed });
+  }
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <Conversation className="flex-1">
+        <ConversationContent className="mx-auto w-full max-w-3xl px-4 py-6">
+          {messages.length === 0 && (
+            <div className="flex flex-col items-center pt-10 text-center">
+              <img
+                src={nanumoniAvatar}
+                alt="Nanumoni"
+                width={88}
+                height={88}
+                className="h-22 w-22 rounded-full ring-2 ring-primary/30"
+              />
+              <h2 className="mt-4 font-display text-2xl font-semibold">
+                Nanumoni is listening, sona.
+              </h2>
+              <p className="mt-1 max-w-md text-sm text-muted-foreground">
+                Ask about dinner ideas, diabetes-friendly plates, iftar plans, budget meals, or any
+                Bangladeshi food.
+              </p>
+              <div className="mt-6 grid w-full max-w-xl gap-2 sm:grid-cols-2">
+                {SUGGESTIONS.map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => submit(s)}
+                    className="rounded-xl border border-border bg-card px-4 py-3 text-left text-sm leading-snug shadow-soft transition hover:-translate-y-0.5 hover:shadow-warm"
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {messages.map((m) => {
+            const text = m.parts
+              .map((p) => (p.type === "text" ? p.text : ""))
+              .join("");
+            if (m.role === "user") {
+              return (
+                <Message key={m.id} from="user">
+                  <MessageContent className="bg-primary text-primary-foreground">
+                    {text}
+                  </MessageContent>
+                </Message>
+              );
+            }
+            return (
+              <Message key={m.id} from="assistant">
+                <div className="flex w-full gap-3">
+                  <img
+                    src={nanumoniAvatar}
+                    alt="Nanumoni"
+                    width={32}
+                    height={32}
+                    className="mt-1 h-8 w-8 shrink-0 rounded-full ring-1 ring-border"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <MessageResponse>{text}</MessageResponse>
+                  </div>
+                </div>
+              </Message>
+            );
+          })}
+
+          {status === "submitted" && (
+            <div className="flex items-center gap-3 px-1 pt-2">
+              <img
+                src={nanumoniAvatar}
+                alt="Nanumoni"
+                width={28}
+                height={28}
+                className="h-7 w-7 rounded-full ring-1 ring-border"
+              />
+              <Shimmer>Nanumoni is thinking…</Shimmer>
+            </div>
+          )}
+        </ConversationContent>
+        <ConversationScrollButton />
+      </Conversation>
+
+      <div className="glass-soft border-t border-border/60">
+        <div className="mx-auto w-full max-w-3xl p-3 sm:p-4">
+          <PromptInput onSubmit={() => void submit(input)}>
+            <PromptInputTextarea
+              ref={inputRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Ask Nanumoni anything… (e.g. ajke ki rannha korbo?)"
+              disabled={isBusy}
+            />
+            <PromptInputFooter className="justify-between">
+              <p className="px-1 text-[11px] text-muted-foreground">
+                Not medical advice — consult a doctor for health concerns.
+              </p>
+              <PromptInputSubmit
+                status={status}
+                disabled={isBusy || !input.trim()}
+              />
+            </PromptInputFooter>
+          </PromptInput>
+        </div>
+      </div>
+    </div>
+  );
+}

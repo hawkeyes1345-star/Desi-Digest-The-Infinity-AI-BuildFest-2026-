@@ -1,0 +1,389 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sage: var(--sage);
+  --color-sage-foreground: var(--sage-foreground);
+  --color-clay: var(--clay);
+  --color-clay-foreground: var(--clay-foreground);
+  --color-cream: var(--cream);
+  --color-spice: var(--spice);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --font-display: "Fraunces", ui-serif, Georgia, serif;
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+
+  --shadow-warm: 0 10px 30px -12px color-mix(in oklab, var(--clay) 35%, transparent);
+  --shadow-soft: 0 4px 16px -6px color-mix(in oklab, var(--foreground) 12%, transparent);
+}
+
+@layer base {
+  @font-face {
+    font-family: "Fraunces";
+    font-style: normal;
+    font-weight: 400 900;
+    font-display: swap;
+    src: url("https://fonts.gstatic.com/s/fraunces/v37/6NUh8FyLNQOQZAnv9bYEvDiIdE9Ea92uemAk.woff2") format("woff2");
+  }
+  @font-face {
+    font-family: "Plus Jakarta Sans";
+    font-style: normal;
+    font-weight: 300 800;
+    font-display: swap;
+    src: url("https://fonts.gstatic.com/s/plusjakartasans/v8/LDIbaomQNQcsA88c7O9yZ4KMCoOg4IA6-91aHEjcWuA_qU79TKBE.woff2") format("woff2");
+  }
+}
+
+:root {
+  --radius: 0.875rem;
+
+  /* Warm Boudi palette */
+  --background: oklch(0.978 0.012 80);
+  --foreground: oklch(0.27 0.04 40);
+  --card: oklch(0.985 0.01 80);
+  --card-foreground: oklch(0.27 0.04 40);
+  --popover: oklch(0.985 0.01 80);
+  --popover-foreground: oklch(0.27 0.04 40);
+
+  --primary: oklch(0.585 0.16 38);
+  --primary-foreground: oklch(0.98 0.01 80);
+  --secondary: oklch(0.94 0.025 110);
+  --secondary-foreground: oklch(0.3 0.04 40);
+
+  --muted: oklch(0.94 0.02 95);
+  --muted-foreground: oklch(0.5 0.03 60);
+  --accent: oklch(0.78 0.08 140);
+  --accent-foreground: oklch(0.3 0.06 145);
+
+  --destructive: oklch(0.55 0.22 28);
+  --destructive-foreground: oklch(0.98 0.01 80);
+
+  --border: oklch(0.9 0.02 70);
+  --input: oklch(0.92 0.02 70);
+  --ring: oklch(0.585 0.16 38);
+
+  --sage: oklch(0.72 0.09 145);
+  --sage-foreground: oklch(0.25 0.05 145);
+  --clay: oklch(0.585 0.16 38);
+  --clay-foreground: oklch(0.98 0.01 80);
+  --cream: oklch(0.978 0.012 80);
+  --spice: oklch(0.66 0.18 55);
+
+  --sidebar: oklch(0.96 0.018 80);
+  --sidebar-foreground: oklch(0.27 0.04 40);
+  --sidebar-primary: oklch(0.585 0.16 38);
+  --sidebar-primary-foreground: oklch(0.98 0.01 80);
+  --sidebar-accent: oklch(0.92 0.025 95);
+  --sidebar-accent-foreground: oklch(0.3 0.04 40);
+  --sidebar-border: oklch(0.9 0.02 70);
+  --sidebar-ring: oklch(0.585 0.16 38);
+
+  /* ============ Glassmorphism design tokens ============
+     Every .glass-* utility derives from these. Override per theme
+     to retune the glass without touching components. */
+  --glass-tint: var(--card);
+  --glass-edge: var(--sage);
+  --glass-glow: var(--clay);
+  --glass-sheen: white;
+  --glass-saturate: 150%;
+
+  /* soft — chips, inline panels, inputs over media */
+  --glass-soft-bg: 42%;
+  --glass-soft-blur: 12px;
+  --glass-soft-border: 30%;
+  --glass-soft-shadow: 0 4px 20px -8px color-mix(in oklab, var(--glass-glow) 25%, transparent);
+
+  /* default — cards */
+  --glass-bg: 55%;
+  --glass-blur: 18px;
+  --glass-border: 35%;
+  --glass-shadow:
+    0 10px 40px -12px color-mix(in oklab, var(--glass-glow) 30%, transparent),
+    inset 0 1px 0 color-mix(in oklab, var(--glass-sheen) 40%, transparent);
+
+  /* strong — hero, modals */
+  --glass-strong-bg: 70%;
+  --glass-strong-blur: 28px;
+  --glass-strong-border: 28%;
+  --glass-strong-edge: var(--primary);
+  --glass-strong-shadow:
+    0 20px 60px -18px color-mix(in oklab, var(--glass-glow) 45%, transparent),
+    0 2px 10px -2px color-mix(in oklab, var(--spice) 18%, transparent),
+    inset 0 1px 0 color-mix(in oklab, var(--glass-sheen) 55%, transparent),
+    inset 0 0 24px color-mix(in oklab, var(--cream) 30%, transparent);
+
+  /* nav — sticky headers/footers */
+  --glass-nav-bg: 55%;
+  --glass-nav-blur: 22px;
+  --glass-nav-border: 22%;
+  --glass-nav-edge: var(--primary);
+  --glass-nav-shadow: 0 8px 30px -16px color-mix(in oklab, var(--glass-glow) 35%, transparent);
+}
+
+.dark {
+  --background: oklch(0.2 0.018 40);
+  --foreground: oklch(0.96 0.015 80);
+  --card: oklch(0.24 0.022 40);
+  --card-foreground: oklch(0.96 0.015 80);
+  --popover: oklch(0.24 0.022 40);
+  --popover-foreground: oklch(0.96 0.015 80);
+  --primary: oklch(0.7 0.14 40);
+  --primary-foreground: oklch(0.2 0.018 40);
+  --secondary: oklch(0.3 0.025 50);
+  --secondary-foreground: oklch(0.96 0.015 80);
+  --muted: oklch(0.3 0.02 50);
+  --muted-foreground: oklch(0.72 0.02 60);
+  --accent: oklch(0.45 0.06 145);
+  --accent-foreground: oklch(0.96 0.015 80);
+  --destructive: oklch(0.65 0.2 28);
+  --destructive-foreground: oklch(0.98 0.01 80);
+  --border: oklch(1 0 0 / 12%);
+  --input: oklch(1 0 0 / 16%);
+  --ring: oklch(0.7 0.14 40);
+  --sage: oklch(0.6 0.09 145);
+  --sage-foreground: oklch(0.96 0.015 80);
+  --clay: oklch(0.7 0.14 40);
+  --clay-foreground: oklch(0.2 0.018 40);
+  --cream: oklch(0.24 0.022 40);
+  --spice: oklch(0.78 0.16 55);
+  --sidebar: oklch(0.22 0.02 40);
+  --sidebar-foreground: oklch(0.96 0.015 80);
+  --sidebar-primary: oklch(0.7 0.14 40);
+  --sidebar-primary-foreground: oklch(0.2 0.018 40);
+  --sidebar-accent: oklch(0.3 0.025 50);
+  --sidebar-accent-foreground: oklch(0.96 0.015 80);
+  --sidebar-border: oklch(1 0 0 / 12%);
+  --sidebar-ring: oklch(0.7 0.14 40);
+
+  /* Glass retune for dark surfaces: more opacity, more saturation,
+     keep sheen subtle so it doesn't look milky over video. */
+  --glass-sheen: oklch(0.96 0.015 80);
+  --glass-saturate: 170%;
+  --glass-bg: 62%;
+  --glass-strong-bg: 76%;
+  --glass-soft-bg: 50%;
+}
+
+@layer base {
+  * { border-color: var(--color-border); }
+  html, body { background-color: var(--color-background); color: var(--color-foreground); }
+  body { font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
+  h1, h2, h3, .font-display { font-family: var(--font-display); letter-spacing: -0.01em; }
+}
+
+@layer utilities {
+  .bg-warm-gradient {
+    background-image: radial-gradient(at 20% 0%, color-mix(in oklab, var(--spice) 18%, transparent), transparent 55%),
+                      radial-gradient(at 90% 100%, color-mix(in oklab, var(--sage) 22%, transparent), transparent 55%),
+                      linear-gradient(180deg, var(--background), color-mix(in oklab, var(--background) 70%, var(--secondary)));
+  }
+  .text-balance { text-wrap: balance; }
+
+  /* ============ Premium Glassmorphism (token-driven) ============ */
+  .glass {
+    background: color-mix(in oklab, var(--glass-tint) var(--glass-bg), transparent);
+    backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+    border: 1px solid color-mix(in oklab, var(--glass-edge) var(--glass-border), transparent);
+    box-shadow: var(--glass-shadow);
+  }
+  .glass-strong {
+    background: color-mix(in oklab, var(--glass-tint) var(--glass-strong-bg), transparent);
+    backdrop-filter: blur(var(--glass-strong-blur)) saturate(var(--glass-saturate));
+    -webkit-backdrop-filter: blur(var(--glass-strong-blur)) saturate(var(--glass-saturate));
+    border: 1px solid color-mix(in oklab, var(--glass-strong-edge) var(--glass-strong-border), transparent);
+    box-shadow: var(--glass-strong-shadow);
+  }
+  .glass-soft {
+    background: color-mix(in oklab, var(--glass-tint) var(--glass-soft-bg), transparent);
+    backdrop-filter: blur(var(--glass-soft-blur)) saturate(var(--glass-saturate));
+    -webkit-backdrop-filter: blur(var(--glass-soft-blur)) saturate(var(--glass-saturate));
+    border: 1px solid color-mix(in oklab, var(--glass-edge) var(--glass-soft-border), transparent);
+    box-shadow: var(--glass-soft-shadow);
+  }
+  .glass-nav {
+    background: color-mix(in oklab, var(--glass-tint) var(--glass-nav-bg), transparent);
+    backdrop-filter: blur(var(--glass-nav-blur)) saturate(var(--glass-saturate));
+    -webkit-backdrop-filter: blur(var(--glass-nav-blur)) saturate(var(--glass-saturate));
+    border-bottom: 1px solid color-mix(in oklab, var(--glass-nav-edge) var(--glass-nav-border), transparent);
+    box-shadow: var(--glass-nav-shadow);
+  }
+}
+
+/* ============ Theme variants (data-theme on <html>) ============ */
+
+[data-theme="modern-green"] {
+  --background: oklch(0.985 0.012 150);
+  --foreground: oklch(0.24 0.04 150);
+  --card: oklch(0.99 0.008 150);
+  --card-foreground: oklch(0.24 0.04 150);
+  --popover: oklch(0.99 0.008 150);
+  --popover-foreground: oklch(0.24 0.04 150);
+  --primary: oklch(0.55 0.14 150);
+  --primary-foreground: oklch(0.98 0.01 150);
+  --secondary: oklch(0.94 0.03 150);
+  --secondary-foreground: oklch(0.28 0.05 150);
+  --muted: oklch(0.94 0.02 150);
+  --muted-foreground: oklch(0.48 0.04 150);
+  --accent: oklch(0.85 0.08 150);
+  --accent-foreground: oklch(0.25 0.06 150);
+  --border: oklch(0.9 0.02 150);
+  --input: oklch(0.92 0.02 150);
+  --ring: oklch(0.55 0.14 150);
+  --sage: oklch(0.62 0.12 150);
+  --clay: oklch(0.55 0.14 150);
+  --cream: oklch(0.985 0.012 150);
+  --spice: oklch(0.7 0.14 130);
+  --sidebar: oklch(0.96 0.018 150);
+  --sidebar-primary: oklch(0.55 0.14 150);
+  --sidebar-accent: oklch(0.92 0.025 150);
+  --sidebar-border: oklch(0.9 0.02 150);
+  --sidebar-ring: oklch(0.55 0.14 150);
+}
+
+[data-theme="festival-gold"] {
+  --background: oklch(0.975 0.025 90);
+  --foreground: oklch(0.28 0.04 60);
+  --card: oklch(0.99 0.018 90);
+  --card-foreground: oklch(0.28 0.04 60);
+  --popover: oklch(0.99 0.018 90);
+  --popover-foreground: oklch(0.28 0.04 60);
+  --primary: oklch(0.68 0.16 75);
+  --primary-foreground: oklch(0.22 0.04 60);
+  --secondary: oklch(0.94 0.04 85);
+  --secondary-foreground: oklch(0.3 0.05 60);
+  --muted: oklch(0.94 0.03 85);
+  --muted-foreground: oklch(0.5 0.04 70);
+  --accent: oklch(0.85 0.1 85);
+  --accent-foreground: oklch(0.3 0.06 60);
+  --border: oklch(0.88 0.03 80);
+  --input: oklch(0.92 0.03 80);
+  --ring: oklch(0.68 0.16 75);
+  --sage: oklch(0.7 0.1 140);
+  --clay: oklch(0.62 0.18 45);
+  --cream: oklch(0.975 0.025 90);
+  --spice: oklch(0.7 0.2 55);
+  --sidebar: oklch(0.96 0.03 85);
+  --sidebar-primary: oklch(0.68 0.16 75);
+  --sidebar-accent: oklch(0.93 0.04 85);
+  --sidebar-border: oklch(0.88 0.03 80);
+  --sidebar-ring: oklch(0.68 0.16 75);
+}
+
+[data-theme="dark-midnight"] {
+  --background: oklch(0.17 0.02 260);
+  --foreground: oklch(0.96 0.01 260);
+  --card: oklch(0.22 0.025 260);
+  --card-foreground: oklch(0.96 0.01 260);
+  --popover: oklch(0.22 0.025 260);
+  --popover-foreground: oklch(0.96 0.01 260);
+  --primary: oklch(0.7 0.16 35);
+  --primary-foreground: oklch(0.17 0.02 260);
+  --secondary: oklch(0.28 0.03 260);
+  --secondary-foreground: oklch(0.96 0.01 260);
+  --muted: oklch(0.28 0.025 260);
+  --muted-foreground: oklch(0.72 0.02 260);
+  --accent: oklch(0.42 0.07 200);
+  --accent-foreground: oklch(0.96 0.01 260);
+  --destructive: oklch(0.65 0.2 28);
+  --destructive-foreground: oklch(0.98 0.01 80);
+  --border: oklch(1 0 0 / 12%);
+  --input: oklch(1 0 0 / 16%);
+  --ring: oklch(0.7 0.16 35);
+  --sage: oklch(0.6 0.1 160);
+  --clay: oklch(0.7 0.16 35);
+  --cream: oklch(0.22 0.025 260);
+  --spice: oklch(0.78 0.16 55);
+  --sidebar: oklch(0.2 0.02 260);
+  --sidebar-foreground: oklch(0.96 0.01 260);
+  --sidebar-primary: oklch(0.7 0.16 35);
+  --sidebar-primary-foreground: oklch(0.17 0.02 260);
+  --sidebar-accent: oklch(0.28 0.03 260);
+  --sidebar-accent-foreground: oklch(0.96 0.01 260);
+  --sidebar-border: oklch(1 0 0 / 12%);
+  --sidebar-ring: oklch(0.7 0.16 35);
+
+  /* Glass retune for this dark theme */
+  --glass-sheen: oklch(0.96 0.01 260);
+  --glass-saturate: 170%;
+  --glass-bg: 62%;
+  --glass-strong-bg: 76%;
+  --glass-soft-bg: 50%;
+}
+
+[data-theme="light-minimal"] {
+  --background: oklch(0.995 0 0);
+  --foreground: oklch(0.2 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.2 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.2 0 0);
+  --primary: oklch(0.25 0 0);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.96 0 0);
+  --secondary-foreground: oklch(0.2 0 0);
+  --muted: oklch(0.96 0 0);
+  --muted-foreground: oklch(0.5 0 0);
+  --accent: oklch(0.93 0 0);
+  --accent-foreground: oklch(0.2 0 0);
+  --border: oklch(0.9 0 0);
+  --input: oklch(0.92 0 0);
+  --ring: oklch(0.25 0 0);
+  --sage: oklch(0.7 0.05 150);
+  --clay: oklch(0.5 0.06 40);
+  --cream: oklch(0.99 0 0);
+  --spice: oklch(0.6 0.15 40);
+  --sidebar: oklch(0.98 0 0);
+  --sidebar-foreground: oklch(0.2 0 0);
+  --sidebar-primary: oklch(0.25 0 0);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.95 0 0);
+  --sidebar-accent-foreground: oklch(0.2 0 0);
+  --sidebar-border: oklch(0.9 0 0);
+  --sidebar-ring: oklch(0.25 0 0);
+}
+
+/* Animations off — global kill switch */
+[data-animations="off"],
+[data-animations="off"] *,
+[data-animations="off"] *::before,
+[data-animations="off"] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
