@@ -7,7 +7,7 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { FOODS, buildEmbedText, type FoodSeed } from "@/lib/foods-dataset";
 import { createGeminiEmbeddingModel, GEMINI_EMBEDDING_DIMS } from "@/lib/ai-gateway.server";
 
-const EMBED_MODEL = "gemini-embedding-001"; // reduced to 1536 dims (matches column)
+const EMBED_MODEL = "text-embedding-004";
 const EMBED_DIMS = GEMINI_EMBEDDING_DIMS;
 
 async function embed(input: string | string[]): Promise<number[][]> {
@@ -18,12 +18,18 @@ async function embed(input: string | string[]): Promise<number[][]> {
       values,
       providerOptions: {
         google: {
-          outputDimensionality: EMBED_DIMS,
           taskType: "SEMANTIC_SIMILARITY",
         },
       },
     });
-    return embeddings;
+    // Pad each embedding vector to EMBED_DIMS (1536) to match the pgvector(1536) database column
+    return embeddings.map(emb => {
+      const padded = new Array(EMBED_DIMS).fill(0);
+      for (let i = 0; i < Math.min(emb.length, EMBED_DIMS); i++) {
+        padded[i] = emb[i];
+      }
+      return padded;
+    });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     if (/429|rate/i.test(msg)) throw new Error("Embedding rate limited, try again in a moment.");

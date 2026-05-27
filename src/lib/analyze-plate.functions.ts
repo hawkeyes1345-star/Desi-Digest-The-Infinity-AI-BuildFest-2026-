@@ -6,7 +6,7 @@ import { BOUDI_KNOWLEDGE } from "@/lib/nanumoni-knowledge";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { type Goal, type Profile, summarizeProfile } from "@/lib/profile.functions";
 
-const EMBED_MODEL = "gemini-embedding-001";
+const EMBED_MODEL = "text-embedding-004";
 const EMBED_DIMS = GEMINI_EMBEDDING_DIMS;
 
 type RagMatch = {
@@ -28,12 +28,18 @@ async function embedBatch(inputs: string[]): Promise<number[][]> {
       values: inputs,
       providerOptions: {
         google: {
-          outputDimensionality: EMBED_DIMS,
           taskType: "SEMANTIC_SIMILARITY",
         },
       },
     });
-    return embeddings;
+    // Pad each embedding vector to EMBED_DIMS (1536) to match the pgvector(1536) database column
+    return embeddings.map(emb => {
+      const padded = new Array(EMBED_DIMS).fill(0);
+      for (let i = 0; i < Math.min(emb.length, EMBED_DIMS); i++) {
+        padded[i] = emb[i];
+      }
+      return padded;
+    });
   } catch (error) {
     console.warn("[analyzePlate] Gemini embed failed", error);
     return [];
