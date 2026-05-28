@@ -6,7 +6,7 @@ import { BOUDI_KNOWLEDGE } from "@/lib/nanumoni-knowledge";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { type Goal, type Profile, summarizeProfile } from "@/lib/profile.functions";
 
-const EMBED_MODEL = "text-embedding-004";
+const EMBED_MODEL = "gemini-embedding-001";
 const EMBED_DIMS = GEMINI_EMBEDDING_DIMS;
 
 type RagMatch = {
@@ -28,20 +28,27 @@ async function embedBatch(inputs: string[]): Promise<number[][]> {
       values: inputs,
       providerOptions: {
         google: {
-          taskType: "SEMANTIC_SIMILARITY",
+          outputDimensionality: EMBED_DIMS,
+          taskType: "RETRIEVAL_QUERY",
         },
       },
     });
-    // Pad each embedding vector to EMBED_DIMS (1536) to match the pgvector(1536) database column
-    return embeddings.map(emb => {
-      const padded = new Array(EMBED_DIMS).fill(0);
-      for (let i = 0; i < Math.min(emb.length, EMBED_DIMS); i++) {
-        padded[i] = emb[i];
+
+    // Validate embedding dimension for each result
+    embeddings.forEach((embedding) => {
+      if (embedding.length !== EMBED_DIMS) {
+        throw new Error(`Embedding dimension mismatch: expected ${EMBED_DIMS}, got ${embedding.length}`);
       }
-      return padded;
     });
+
+    return embeddings;
   } catch (error) {
-    console.warn("[analyzePlate] Gemini embed failed", error);
+    console.error("[analyze-plate-embed] embedding failed", {
+      model: EMBED_MODEL,
+      hasGeminiKey: Boolean(process.env.GEMINI_API_KEY),
+      hasGoogleKey: Boolean(process.env.GOOGLE_GENERATIVE_AI_API_KEY),
+      error: error instanceof Error ? error.message : String(error),
+    });
     return [];
   }
 }

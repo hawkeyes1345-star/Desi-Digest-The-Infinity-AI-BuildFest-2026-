@@ -7,10 +7,10 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { FOODS, buildEmbedText, type FoodSeed } from "@/lib/foods-dataset";
 import { createGeminiEmbeddingModel, GEMINI_EMBEDDING_DIMS } from "@/lib/ai-gateway.server";
 
-const EMBED_MODEL = "text-embedding-004";
+const EMBED_MODEL = "gemini-embedding-001";
 const EMBED_DIMS = GEMINI_EMBEDDING_DIMS;
 
-async function embed(input: string | string[]): Promise<number[][]> {
+async function embed(input: string | string[], isQuery = false): Promise<number[][]> {
   const values = Array.isArray(input) ? input : [input];
   try {
     const { embeddings } = await embedMany({
@@ -18,19 +18,27 @@ async function embed(input: string | string[]): Promise<number[][]> {
       values,
       providerOptions: {
         google: {
-          taskType: "SEMANTIC_SIMILARITY",
+          outputDimensionality: EMBED_DIMS,
+          taskType: isQuery ? "RETRIEVAL_QUERY" : "RETRIEVAL_DOCUMENT",
         },
       },
     });
-    // Pad each embedding vector to EMBED_DIMS (1536) to match the pgvector(1536) database column
-    return embeddings.map(emb => {
-      const padded = new Array(EMBED_DIMS).fill(0);
-      for (let i = 0; i < Math.min(emb.length, EMBED_DIMS); i++) {
-        padded[i] = emb[i];
+
+    // Validate embedding dimension for each result
+    embeddings.forEach((embedding, i) => {
+      if (embedding.length !== EMBED_DIMS) {
+        throw new Error(`Embedding dimension mismatch: expected ${EMBED_DIMS}, got ${embedding.length}`);
       }
-      return padded;
     });
+
+    return embeddings;
   } catch (error) {
+    console.error("[food-kb-sync] embedding failed", {
+      model: EMBED_MODEL,
+      hasGeminiKey: Boolean(process.env.GEMINI_API_KEY),
+      hasGoogleKey: Boolean(process.env.GOOGLE_GENERATIVE_AI_API_KEY),
+      error: error instanceof Error ? error.message : String(error),
+    });
     const msg = error instanceof Error ? error.message : String(error);
     if (/429|rate/i.test(msg)) throw new Error("Embedding rate limited, try again in a moment.");
     throw new Error(`Gemini embedding error: ${msg.slice(0, 200)}`);
@@ -105,7 +113,7 @@ export const searchFoods = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const [vec] = await embed(data.query);
+    const [vec] = await embed(data.query, true);
     const { supabase } = context;
     const { data: matches, error } = await supabase.rpc("match_foods", {
       query_embedding: vec as unknown as string,
