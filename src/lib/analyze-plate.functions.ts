@@ -321,35 +321,69 @@ export const analyzePlate = createServerFn({ method: "POST" })
     }
   })
   .handler(async ({ data, context }) => {
+    let phase = "start";
     const parsedDataUrl = data.imageDataUrl ? parseImageDataUrl(data.imageDataUrl) : null;
     const imageBase64 = data.imageBase64 ?? parsedDataUrl?.imageBase64 ?? "";
     const mimeType = normalizeImageMimeType(data.mimeType) ?? parsedDataUrl?.mimeType ?? null;
 
-    if (!imageBase64 || imageBase64.length < 1000) {
-      throw new Error("Invalid or empty image payload");
-    }
-
-    if (!mimeType || !ALLOWED_IMAGE_MIME_TYPES.includes(mimeType)) {
-      throw new Error(`Unsupported image MIME type: ${mimeType}`);
-    }
-
-    let gateway;
     try {
-      gateway = createGeminiProvider();
-    } catch {
-      throw new Error("Gemini is not configured. Set GEMINI_API_KEY.");
-    }
+      console.info("[plate-analysis] phase:start", {
+        hasImage: Boolean(imageBase64),
+        mimeType,
+        imageBase64Length: imageBase64?.length ?? 0,
+        model: VISION_MODEL_NAME,
+        hasGeminiKey: Boolean(process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY),
+      });
 
-    // Pull the signed-in user's profile (RLS-scoped, never trust client)
-    const { supabase, userId } = context;
-    const { data: profileRow } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("user_id", userId)
-      .maybeSingle();
-    const profile = (profileRow as Profile | null) ?? null;
+      if (!imageBase64 || imageBase64.length < 1000) {
+        throw new Error("Invalid or empty image payload");
+      }
 
-    const userPrompt = `Analyze this plate of food FOR THIS SPECIFIC USER.
+      if (!mimeType || !ALLOWED_IMAGE_MIME_TYPES.includes(mimeType)) {
+        throw new Error(`Unsupported image MIME type: ${mimeType}`);
+      }
+
+      let gateway;
+      try {
+        gateway = createGeminiProvider();
+      } catch {
+        throw new Error("Gemini is not configured. Set GEMINI_API_KEY.");
+      }
+
+      // Pull the signed-in user's profile (RLS-scoped, never trust client)
+      const { supabase, userId } = context;
+      const { data: profileRow } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("user_id", userId)
+        .maybeSingle();
+      const profile = (profileRow as Profile | null) ?? null;
+
+      // 2. Minimal vision test to confirm Gemini can see the image
+      phase = "minimal_vision_test";
+      console.info("[plate-analysis] phase:before_minimal_test");
+      try {
+        const { text: testText } = await generateText({
+          model: gateway(VISION_MODEL_NAME),
+          messages: [
+            {
+              role: "user",
+              content: [
+                { type: "text", text: "Look at this image. Describe the visible food in one short sentence. If it is rice, say cooked white rice / bhat." },
+                { type: "image", image: imageBase64, mediaType: mimeType },
+              ],
+            },
+          ],
+        });
+        console.info("[plate-analysis] minimal test success", { testText });
+      } catch (testError) {
+        console.error("[plate-analysis] minimal test failed", {
+          error: testError instanceof Error ? testError.message : String(testError),
+        });
+        // We continue to the main analysis even if the test fails to gather more logs
+      }
+
+      const userPrompt = `Analyze this plate of food FOR THIS SPECIFIC USER.
 
 ${buildUserContextBlock(profile, data.userContext)}
 
@@ -360,54 +394,82 @@ ${BOUDI_KNOWLEDGE}
 
 Return a complete JSON analysis matching the required schema. Every personalized field (healthScore, healthExplanation, idealPlateComparison, goalAlignment, goalAdjustedTargets, makeItHealthierTips, personalizedSuggestions) MUST reflect the user's goals — not generic advice. Be specific, warm, and explainable.`;
 
-    const runVision = async (modelId: string) => {
-      console.info("[plate-analysis] starting Gemini vision call", {
-        model: VISION_MODEL_NAME,
-        hasGeminiKey: Boolean(process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY),
-        mimeType,
-        imageBase64Length: imageBase64?.length ?? 0,
+      phase = "gemini_vision_call";
+      console.info("[plate-analysis] phase:before_gemini");
+
+      const { text } = await generateText({
+        model: gateway(VISION_MODEL_NAME),
+        system: VISION_SYSTEM,
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: userPrompt },
+              { type: "image", image: imageBase64, mediaType: mimeType },
+            ],
+          },
+        ],
       });
 
+      console.info("[plate-analysis] phase:after_gemini", {
+        hasText: Boolean(text),
+        textLength: text?.length ?? 0,
+      });
+
+      phase = "schema_parse";
+      console.info("[plate-analysis] phase:before_schema_parse");
+
+      // Clean up markdown if present
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      const jsonString = jsonMatch ? jsonMatch[0] : text;
+      
+      let analysis;
       try {
-        const { text } = await generateText({
-          model: gateway(modelId),
-          system: VISION_SYSTEM,
-          messages: [
-            {
-              role: "user",
-              content: [
-                { type: "text", text: userPrompt },
-                { type: "image", image: imageBase64, mediaType: mimeType },
-              ],
-            },
-          ],
+        const rawJson = JSON.parse(jsonString);
+        analysis = AnalysisSchema.parse(rawJson);
+      } catch (parseError) {
+        console.error("[plate-analysis] failed to parse Gemini JSON", {
+          text,
+          error: parseError instanceof Error ? parseError.message : String(parseError),
         });
-
-        // Clean up markdown if present
-        const jsonMatch = text.match(/\{[\s\S]*\}/);
-        const jsonString = jsonMatch ? jsonMatch[0] : text;
-        
-        try {
-          return AnalysisSchema.parse(JSON.parse(jsonString));
-        } catch (parseError) {
-          console.error("[plate-analysis] failed to parse Gemini JSON", {
-            text,
-            error: parseError instanceof Error ? parseError.message : String(parseError),
-          });
-          throw new Error("AI returned invalid data format. Please try again.");
-        }
-      } catch (error) {
-        console.error("[plate-analysis] Gemini vision call failed", {
-          model: VISION_MODEL_NAME,
-          message: error instanceof Error ? error.message : String(error),
-          name: error instanceof Error ? error.name : undefined,
-        });
-        throw error;
+        throw new Error("AI returned invalid data format during schema_parse");
       }
-    };
 
-    const friendlyError = (err: unknown): never => {
-      const msg = err instanceof Error ? err.message : "Unknown error";
+      console.info("[plate-analysis] phase:after_schema_parse");
+
+      phase = "rag_lookup";
+      console.info("[plate-analysis] phase:before_rag_lookup");
+      // Placeholder for RAG lookup
+      console.info("[plate-analysis] phase:after_rag_lookup");
+
+      console.info("[plate-analysis] phase:success");
+
+      const profileMeta = {
+        profileIncomplete: missingProfileFields(profile).length > 0,
+        missingProfileFields: missingProfileFields(profile),
+        bmi: computeBMI(profile),
+      };
+
+      return { 
+        ...analysis, 
+        modelUsed: VISION_MODEL_NAME, 
+        ragGrounding: [], 
+        ...profileMeta 
+      };
+
+    } catch (error) {
+      console.error("[plate-analysis] failed", {
+        phase,
+        model: VISION_MODEL_NAME,
+        mimeType,
+        imageBase64Length: imageBase64?.length ?? 0,
+        hasGeminiKey: Boolean(process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY),
+        errorName: error instanceof Error ? error.name : undefined,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined,
+      });
+
+      const msg = error instanceof Error ? error.message : "Unknown error";
       if (/Unsupported image MIME type/i.test(msg)) {
         throw new Error("Please upload a PNG, JPG, JPEG, or WEBP image.");
       }
@@ -416,26 +478,9 @@ Return a complete JSON analysis matching the required schema. Every personalized
       }
       if (/429/.test(msg)) throw new Error("Nanumoni is a bit busy right now (rate limited). Try again in a moment, sona.");
       if (/402/.test(msg)) throw new Error("Gemini API quota exhausted — check your Google AI billing.");
-      throw new Error("AI analysis failed. Please try again.");
-    };
-
-    const profileMeta = {
-      profileIncomplete: missingProfileFields(profile).length > 0,
-      missingProfileFields: missingProfileFields(profile),
-      bmi: computeBMI(profile),
-    };
-
-    // Primary pass: Gemini 2.5 Flash
-    try {
-      const analysis = await runVision(VISION_MODEL_NAME);
-      return { 
-        ...analysis, 
-        modelUsed: VISION_MODEL_NAME, 
-        ragGrounding: [], 
-        ...profileMeta 
-      };
-    } catch (err) {
-      return friendlyError(err);
+      
+      // Return a safe debug message as requested
+      throw new Error(`AI analysis failed during: ${phase}`);
     }
   });
 
