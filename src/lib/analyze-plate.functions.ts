@@ -44,62 +44,91 @@ const AnalysisSchema = z.object({
     .array(
       z.object({
         name: z.string().describe("Local name e.g. 'Macher Jhol (Rui)', 'Aloo Bhorta', 'Bhat'"),
-        portion: z.string().describe("Estimated portion e.g. '1 cup', '1 medium piece, ~80g'"),
-        portion_grams: z.number().describe("Estimated grams for this dish piece"),
-        confidence: z.enum(["high", "medium", "low"]),
+        portion: z.string().default("1 portion").describe("Estimated portion e.g. '1 cup', '1 medium piece, ~80g'"),
+        portion_grams: z.number().default(0).describe("Estimated grams for this dish piece"),
+        confidence: z.enum(["high", "medium", "low"]).default("medium"),
         nutrition: z
           .object({
-            calories: z.number(),
-            protein_g: z.number(),
-            carbs_g: z.number(),
-            fat_g: z.number(),
-            fiber_g: z.number(),
-            iron_mg: z.number(),
-            sodium_mg: z.number(),
+            calories: z.number().default(0),
+            protein_g: z.number().default(0),
+            carbs_g: z.number().default(0),
+            fat_g: z.number().default(0),
+            fiber_g: z.number().default(0),
+            iron_mg: z.number().default(0),
+            sodium_mg: z.number().default(0),
+          })
+          .default({
+            calories: 0,
+            protein_g: 0,
+            carbs_g: 0,
+            fat_g: 0,
+            fiber_g: 0,
+            iron_mg: 0,
+            sodium_mg: 0,
           })
           .describe("Per-dish nutrition for the estimated portion"),
-        note: z.string().describe("1-line Nanumoni note on this specific item (warm, local)"),
+        note: z.string().default("").describe("1-line Nanumoni note on this specific item (warm, local)"),
       }),
     )
     .default([]),
 
   nutrition: z
     .object({
-      calories: z.number().describe("Total kcal for the whole plate"),
-      protein_g: z.number(),
-      carbs_g: z.number(),
-      fat_g: z.number(),
-      fiber_g: z.number(),
-      iron_mg: z.number(),
-      vitaminA_ugRAE: z.number(),
-      zinc_mg: z.number(),
-      sodium_mg: z.number(),
+      calories: z.number().default(0).describe("Total kcal for the whole plate"),
+      protein_g: z.number().default(0),
+      carbs_g: z.number().default(0),
+      fat_g: z.number().default(0),
+      fiber_g: z.number().default(0),
+      iron_mg: z.number().default(0),
+      vitaminA_ugRAE: z.number().default(0),
+      zinc_mg: z.number().default(0),
+      sodium_mg: z.number().default(0),
     })
-    .optional(),
+    .default({
+      calories: 0,
+      protein_g: 0,
+      carbs_g: 0,
+      fat_g: 0,
+      fiber_g: 0,
+      iron_mg: 0,
+      vitaminA_ugRAE: 0,
+      zinc_mg: 0,
+      sodium_mg: 0,
+    }),
   healthScore: z
     .number()
     .min(0)
     .max(10)
+    .default(5)
     .describe(
       "0-10 healthiness, calibrated to the user's goals (e.g. white-rice-heavy meal scores lower for a diabetes_friendly user).",
     ),
   healthExplanation: z
     .string()
+    .default("")
     .describe("Why this score for THIS user given their goals, 2-3 sentences"),
   hygieneNotes: z
     .string()
+    .default("")
     .describe("Freshness / oil / portion observations from visual cues"),
   idealPlateComparison: z
     .string()
+    .default("")
     .describe(
       "Compare to ideal Deshi plate (½ shak-shobji, ¼ bhat, ¼ dal+mach) BIASED to the user's goals.",
     ),
   idealPlateBreakdown: z
     .object({
-      shak_shobji_pct: z.number().min(0).max(100).describe("Estimated % of the plate that is vegetables/greens (ideal 50%)"),
-      bhat_carbs_pct: z.number().min(0).max(100).describe("Estimated % of the plate that is rice/roti/carbs (ideal 25%)"),
-      dal_protein_pct: z.number().min(0).max(100).describe("Estimated % of the plate that is dal + fish/meat/egg protein (ideal 25%)"),
-      notes: z.string().describe("1-line note on what's missing or overdone vs ideal Deshi plate, goal-aware"),
+      shak_shobji_pct: z.number().min(0).max(100).default(0).describe("Estimated % of the plate that is vegetables/greens (ideal 50%)"),
+      bhat_carbs_pct: z.number().min(0).max(100).default(0).describe("Estimated % of the plate that is rice/roti/carbs (ideal 25%)"),
+      dal_protein_pct: z.number().min(0).max(100).default(0).describe("Estimated % of the plate that is dal + fish/meat/egg protein (ideal 25%)"),
+      notes: z.string().default("").describe("1-line note on what's missing or overdone vs ideal Deshi plate, goal-aware"),
+    })
+    .default({
+      shak_shobji_pct: 0,
+      bhat_carbs_pct: 0,
+      dal_protein_pct: 0,
+      notes: "",
     })
     .describe("Visual composition breakdown of the plate vs the ideal ½ shak / ¼ bhat / ¼ dal+protein split."),
   goalAlignment: z
@@ -110,25 +139,38 @@ const AnalysisSchema = z.object({
         reason: z.string().describe("1 sentence — explainable, name the macro/micro driver"),
       }),
     )
+    .default([])
     .describe("One entry per active user goal. Empty array if user has no goals."),
   goalAdjustedTargets: z
     .object({
-      calories: z.number().describe("Suggested kcal for THIS meal given goals & TDEE"),
-      protein_g: z.number(),
-      carbs_g: z.number(),
-      fat_g: z.number(),
-      fiber_g: z.number(),
-      sodium_mg_max: z.number(),
+      calories: z.number().default(0).describe("Suggested kcal for THIS meal given goals & TDEE"),
+      protein_g: z.number().default(0),
+      carbs_g: z.number().default(0),
+      fat_g: z.number().default(0),
+      fiber_g: z.number().default(0),
+      sodium_mg_max: z.number().default(0),
       notes: z
         .string()
+        .default("")
         .describe("1-line plain-English why these targets (goal-aware)."),
+    })
+    .default({
+      calories: 0,
+      protein_g: 0,
+      carbs_g: 0,
+      fat_g: 0,
+      fiber_g: 0,
+      sodium_mg_max: 0,
+      notes: "",
     })
     .describe("Per-meal targets tuned to user's goals + TDEE."),
   personalizedSuggestions: z
     .array(z.string())
+    .default([])
     .describe("3-4 actionable Nanumoni-style tips tailored to user goals"),
   makeItHealthierTips: z
     .array(z.string())
+    .default([])
     .describe(
       "2-3 concrete Deshi swaps/additions tailored to the user's goals (e.g. swap white bhat → lal chal for diabetes; add liver/kalo jeera spinach for anemia; cut oil-fried for weight_loss; add milk+egg for pregnancy)",
     ),
@@ -140,18 +182,21 @@ const AnalysisSchema = z.object({
         why: z.string().describe("1-line why this swap helps THIS user's goals"),
       }),
     )
+    .default([])
     .describe("2-3 concrete one-for-one Deshi swaps for THIS plate"),
   portionAdjustment: z
     .string()
+    .default("")
     .describe(
       "Plain-English portion guidance for the user's goals, e.g. 'Reduce bhat by ~50g and double the pui shak — same satisfaction, gentler on blood sugar.'",
     ),
   budgetAlternatives: z
     .array(z.string())
+    .default([])
     .describe(
       "1-3 budget-friendly Deshi alternatives if the user has student_budget goal OR a low budget_bdt. Empty array if not relevant.",
     ),
-  sources: z.array(z.string()).describe("Knowledge sources cited, e.g. 'FCTB', 'icddr,b'"),
+  sources: z.array(z.string()).default([]).describe("Knowledge sources cited, e.g. 'FCTB', 'icddr,b'"),
 });
 
 export type PlateAnalysis = z.infer<typeof AnalysisSchema> & {
@@ -185,9 +230,12 @@ Estimate portion sizes realistically for a typical Bangladeshi household plate. 
 
 You MUST personalize every output (healthScore, healthExplanation, idealPlateComparison, goalAlignment, goalAdjustedTargets, makeItHealthierTips, personalizedSuggestions) to the user's GOALS and TDEE. The same plate scores differently for different goals — be honest and explainable about why.
 
-Be honest about confidence. If the image is too blurry, dark, or has no food, set detected=false / blurry=true and write a kind Nanumoni-voice message — never invent food. If it's a single food item (like a bowl of rice) or a partial plate, identify it and DO NOT say the image is unclear. Provide a partial but useful analysis.
+Be honest about confidence. If the image is too blurry, dark, or has no food, set detected=false / blurry=true and write a kind Nanumoni-voice message — never invent food.
 
-If you can see only cooked rice / bhat, set detected=true and blurry=false, include one dish such as "Cooked White Rice / Bhat", use medium or high confidence when visually reasonable, and say: "I can see rice, but I may be missing other foods." Do not require a plate shape; bowls, close-ups, partial plates, and single food items are valid food photos.
+SUPPORT SINGLE FOODS AND PARTIAL PLATES: 
+If it's a single food item (like a bowl of rice / bhat) or a partial plate, identify it and DO NOT say the image is unclear. Provide a partial but useful analysis. If you can see only cooked rice / bhat, set detected=true and blurry=false, include one dish such as "Cooked White Rice / Bhat", use medium or high confidence when visually reasonable, and say: "I can see rice, but I may be missing other foods." 
+
+Do not require a plate shape; bowls, close-ups, partial plates, and single food items are valid food photos. Provide your best estimate even for partial data.
 
 Always cite knowledge sources you used (FCTB, icddr,b, knowledge base).`;
 
@@ -392,7 +440,14 @@ Use this knowledge base as ground truth for nutrition values and ideal plate com
 ${BOUDI_KNOWLEDGE}
 ---
 
-Return a complete JSON analysis matching the required schema. Every personalized field (healthScore, healthExplanation, idealPlateComparison, goalAlignment, goalAdjustedTargets, makeItHealthierTips, personalizedSuggestions) MUST reflect the user's goals — not generic advice. Be specific, warm, and explainable.`;
+Return a complete JSON analysis matching the required schema. 
+
+CRITICAL JSON RULES:
+1. Return VALID JSON ONLY. No markdown, no triple backticks, unless the tool requires it.
+2. If only one food is visible (e.g., rice/bhat), still return it in the "dishes" array.
+3. If nutrition values are uncertain, provide your best estimate or null.
+4. If it's not a full plate, set detected=true and blurry=false, and explain it's a partial view.
+5. Every personalized field MUST reflect the user's goals — not generic advice. Be specific, warm, and explainable.`;
 
       phase = "gemini_vision_call";
       console.info("[plate-analysis] phase:before_gemini");
@@ -423,16 +478,44 @@ Return a complete JSON analysis matching the required schema. Every personalized
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       const jsonString = jsonMatch ? jsonMatch[0] : text;
       
+      console.info("[plate-analysis] raw Gemini output before schema parse", {
+        outputPreview: jsonString.slice(0, 1000),
+      });
+
       let analysis;
       try {
         const rawJson = JSON.parse(jsonString);
         analysis = AnalysisSchema.parse(rawJson);
       } catch (parseError) {
-        console.error("[plate-analysis] failed to parse Gemini JSON", {
+        console.error("[plate-analysis] failed to parse Gemini JSON, attempting fallback", {
           text,
           error: parseError instanceof Error ? parseError.message : String(parseError),
         });
-        throw new Error("AI returned invalid data format during schema_parse");
+        
+        // Fallback parsing: try to extract dishes if full schema fails
+        try {
+          const rawJson = JSON.parse(jsonString);
+          // Construct a minimal object that we know should pass AnalysisSchema.parse
+          // thanks to the defaults we added above.
+          const minimalObj = {
+            detected: typeof rawJson.detected === "boolean" ? rawJson.detected : true,
+            blurry: typeof rawJson.blurry === "boolean" ? rawJson.blurry : false,
+            nanumoniMessage: rawJson.nanumoniMessage || "I see some food here, sona! Let me try my best to analyze it.",
+            dishes: Array.isArray(rawJson.dishes) ? rawJson.dishes.map((d: any) => ({
+              name: d.name || "Unknown Dish",
+              portion: d.portion || "1 portion",
+              confidence: d.confidence || "medium",
+              note: d.note || "",
+              nutrition: d.nutrition || {}
+            })) : [],
+            // The rest will be filled by AnalysisSchema.parse defaults
+          };
+          analysis = AnalysisSchema.parse(minimalObj);
+          console.info("[plate-analysis] fallback parse succeeded");
+        } catch (fallbackError) {
+          console.error("[plate-analysis] fallback parse failed", { error: String(fallbackError) });
+          throw new Error("AI returned invalid data format during schema_parse");
+        }
       }
 
       console.info("[plate-analysis] phase:after_schema_parse");
