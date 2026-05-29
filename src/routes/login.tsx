@@ -34,7 +34,7 @@ function LoginPage() {
         const { error } = await supabase.auth.signUp({
           email,
           password,
-          options: { emailRedirectTo: window.location.origin + "/chat" },
+          options: { emailRedirectTo: window.location.origin + "/dashboard" },
         });
         if (error) throw error;
         toast.success("Welcome! Check your email to confirm — then sign in.");
@@ -42,7 +42,7 @@ function LoginPage() {
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        navigate({ to: "/chat" });
+        navigate({ to: "/dashboard" });
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");

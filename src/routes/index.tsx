@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Sprout, Heart, Sparkles, ShieldCheck, MessageCircle, Leaf, Camera } from "lucide-react";
 import logoMark from "@/assets/logo-mark.png";
@@ -7,9 +7,21 @@ import nanumoniAvatar from "@/assets/nanumoni-avatar.jpg";
 import { PlateAnalyzer } from "@/components/PlateAnalyzer";
 import { VideoBackground } from "@/components/VideoBackground";
 import { NavbarProfile } from "@/components/NavbarProfile";
+import { supabase } from "@/integrations/supabase/client";
+import { isDemoSession } from "@/lib/demo-session";
+import { useEffect, useState } from "react";
 
 
 export const Route = createFileRoute("/")({
+  beforeLoad: async () => {
+    if (isDemoSession()) {
+      throw redirect({ to: "/dashboard" });
+    }
+    const { data } = await supabase.auth.getSession();
+    if (data.session) {
+      throw redirect({ to: "/dashboard" });
+    }
+  },
   head: () => ({
     meta: [
       { title: "Deshi Digest — Nanumoni's AI nutrition guide for Bangladesh" },
@@ -25,6 +37,22 @@ export const Route = createFileRoute("/")({
 });
 
 function Landing() {
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (isDemoSession()) {
+      setIsLoggedIn(true);
+      return;
+    }
+    supabase.auth.getSession().then(({ data }) => {
+      setIsLoggedIn(!!data.session);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsLoggedIn(!!session);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
   return (
     <div className="relative min-h-screen">
       <VideoBackground />
@@ -37,13 +65,19 @@ function Landing() {
             <span className="font-display text-xl font-semibold tracking-tight">Deshi Digest</span>
           </Link>
           <nav className="flex items-center gap-2">
-            <Link to="/login" className="hidden sm:block">
-              <Button variant="ghost">Sign in</Button>
-            </Link>
-            <Link to="/dashboard">
-              <Button className="shadow-warm">Open dashboard</Button>
-            </Link>
-            <NavbarProfile />
+            {isLoggedIn === false && (
+              <Link to="/login" className="hidden sm:block">
+                <Button variant="ghost">Sign in</Button>
+              </Link>
+            )}
+            {isLoggedIn === true && (
+              <>
+                <Link to="/dashboard">
+                  <Button className="shadow-warm">Open dashboard</Button>
+                </Link>
+                <NavbarProfile />
+              </>
+            )}
           </nav>
         </div>
       </header>
