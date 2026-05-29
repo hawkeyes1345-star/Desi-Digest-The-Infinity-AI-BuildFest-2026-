@@ -14,12 +14,11 @@ import {
   type DietaryPreference,
 } from "@/lib/profile.functions";
 import { Textarea } from "@/components/ui/textarea";
-import { seedFoods } from "@/lib/foods.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { ArrowLeft, Loader2, Check, Palette, Languages, Sparkles } from "lucide-react";
+import { ArrowLeft, Loader2, Check, Palette, Languages, Sparkles, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { THEMES, useAppearance, useT, type ThemeId } from "@/lib/appearance";
@@ -76,13 +75,6 @@ function ProfilePage() {
   const qc = useQueryClient();
   const get = useServerFn(getMyProfile);
   const save = useServerFn(upsertMyProfile);
-  const seed = useServerFn(seedFoods);
-  const seedMut = useMutation({
-    mutationFn: () => seed(),
-    onSuccess: (r) =>
-      toast.success(`Nanumoni's food KB synced — ${r.embedded} embedded, ${r.skipped} unchanged.`),
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Sync failed"),
-  });
   const appearance = useAppearance();
   const t = useT();
 
@@ -460,23 +452,21 @@ function ProfilePage() {
           </label>
         </Card>
 
-        <Card title="Nanumoni food knowledge base" subtitle="Sync the curated Bangladeshi food dataset into Nanumoni's vector memory.">
+        <Card
+          title="Nanumoni food memory"
+          subtitle="Nanumoni uses a curated Bangladeshi food knowledge base to give culturally familiar suggestions, explain ingredients, and support plate analysis."
+        >
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-secondary/50 px-4 py-3">
             <div>
-              <p className="font-medium">Sync now</p>
-              <p className="text-xs text-muted-foreground">
-                Idempotent — only re-embeds items whose content changed. Safe to run after adding new foods.
-              </p>
+              <p className="font-medium">Status</p>
+              <p className="text-xs text-muted-foreground">Active</p>
             </div>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={seedMut.isPending}
-              onClick={() => seedMut.mutate()}
-            >
-              {seedMut.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-              Sync food KB
-            </Button>
+            <Link to="/chat">
+              <Button type="button" variant="outline">
+                <MessageCircle className="h-4 w-4" />
+                Explore with Nanumoni
+              </Button>
+            </Link>
           </div>
         </Card>
 
