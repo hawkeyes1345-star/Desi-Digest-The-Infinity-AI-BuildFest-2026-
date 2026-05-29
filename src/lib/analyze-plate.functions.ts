@@ -7,10 +7,7 @@ import { BOUDI_KNOWLEDGE } from "@/lib/nanumoni-knowledge";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { type Goal, type Profile, summarizeProfile } from "@/lib/profile.functions";
 
-const EMBED_MODEL = "gemini-embedding-001";
-const EMBED_DIMS = GEMINI_EMBEDDING_DIMS;
-const VISION_MODEL_NAME = "gemini-2.5-pro" as const;
-const VISION_FALLBACK_MODEL_NAME = "gemini-2.5-flash" as const;
+const VISION_MODEL_NAME = "gemini-2.5-flash" as const;
 
 type RagMatch = {
   food_id: string;
@@ -22,39 +19,6 @@ type RagMatch = {
   nanumoni_friendly_note: string | null;
   similarity: number;
 };
-
-async function embedBatch(inputs: string[]): Promise<number[][]> {
-  if (!inputs.length) return [];
-  try {
-    const { embeddings } = await embedMany({
-      model: createGeminiEmbeddingModel(),
-      values: inputs,
-      providerOptions: {
-        google: {
-          outputDimensionality: EMBED_DIMS,
-          taskType: "RETRIEVAL_QUERY",
-        },
-      },
-    });
-
-    // Validate embedding dimension for each result
-    embeddings.forEach((embedding) => {
-      if (embedding.length !== EMBED_DIMS) {
-        throw new Error(`Embedding dimension mismatch: expected ${EMBED_DIMS}, got ${embedding.length}`);
-      }
-    });
-
-    return embeddings;
-  } catch (error) {
-    console.error("[analyze-plate-embed] embedding failed", {
-      model: EMBED_MODEL,
-      hasGeminiKey: Boolean(process.env.GEMINI_API_KEY),
-      hasGoogleKey: Boolean(process.env.GOOGLE_GENERATIVE_AI_API_KEY),
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return [];
-  }
-}
 
 
 const InputSchema = z
@@ -397,19 +361,17 @@ ${BOUDI_KNOWLEDGE}
 Return a complete JSON analysis matching the required schema. Every personalized field (healthScore, healthExplanation, idealPlateComparison, goalAlignment, goalAdjustedTargets, makeItHealthierTips, personalizedSuggestions) MUST reflect the user's goals — not generic advice. Be specific, warm, and explainable.`;
 
     const runVision = async (modelId: string) => {
-      console.info("[plate-analysis] image received", {
-        hasImage: Boolean(imageBase64),
-        mimeType,
-        imageBase64Length: imageBase64.length,
-        model: modelId,
+      console.info("[plate-analysis] starting Gemini vision call", {
+        model: VISION_MODEL_NAME,
         hasGeminiKey: Boolean(process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY),
+        mimeType,
+        imageBase64Length: imageBase64?.length ?? 0,
       });
 
       try {
-        const { experimental_output } = await generateText({
+        const { text } = await generateText({
           model: gateway(modelId),
           system: VISION_SYSTEM,
-          experimental_output: Output.object({ schema: AnalysisSchema }),
           messages: [
             {
               role: "user",
@@ -420,18 +382,31 @@ Return a complete JSON analysis matching the required schema. Every personalized
             },
           ],
         });
-        return experimental_output;
+
+        // Clean up markdown if present
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        const jsonString = jsonMatch ? jsonMatch[0] : text;
+        
+        try {
+          return AnalysisSchema.parse(JSON.parse(jsonString));
+        } catch (parseError) {
+          console.error("[plate-analysis] failed to parse Gemini JSON", {
+            text,
+            error: parseError instanceof Error ? parseError.message : String(parseError),
+          });
+          throw new Error("AI returned invalid data format. Please try again.");
+        }
       } catch (error) {
-        console.error("[plate-analysis] failed", {
-          phase: "gemini_vision_call",
+        console.error("[plate-analysis] Gemini vision call failed", {
+          model: VISION_MODEL_NAME,
           message: error instanceof Error ? error.message : String(error),
+          name: error instanceof Error ? error.name : undefined,
         });
         throw error;
       }
     };
 
     const friendlyError = (err: unknown): never => {
-      console.error("[analyzePlate] error", err);
       const msg = err instanceof Error ? err.message : "Unknown error";
       if (/Unsupported image MIME type/i.test(msg)) {
         throw new Error("Please upload a PNG, JPG, JPEG, or WEBP image.");
@@ -444,113 +419,23 @@ Return a complete JSON analysis matching the required schema. Every personalized
       throw new Error("AI analysis failed. Please try again.");
     };
 
-    // RAG enrichment: pull FCTB-grounded nutrition for each dish via semantic search.
-    async function enrichWithRag(
-      base: z.infer<typeof AnalysisSchema>,
-    ): Promise<{
-      ragGrounding: { dish: string; matched: string; similarity: number }[];
-    }> {
-      if (!base.detected || !base.dishes.length) return { ragGrounding: [] };
-      const names = base.dishes.map((d) => d.name);
-      const vectors = await embedBatch(names);
-      if (!vectors.length) return { ragGrounding: [] };
-      const grounding: { dish: string; matched: string; similarity: number }[] = [];
-      await Promise.all(
-        vectors.map(async (vec, i) => {
-          const { data: matches } = await supabase.rpc("match_foods", {
-            query_embedding: vec as unknown as string,
-            match_count: 1,
-          });
-          const top = (matches as RagMatch[] | null)?.[0];
-          if (!top || top.similarity < 0.55) return;
-          grounding.push({
-            dish: base.dishes[i].name,
-            matched: `${top.name_en} (${top.name_bn})`,
-            similarity: Math.round(top.similarity * 100) / 100,
-          });
-          // Sanity-check & gently correct per-dish nutrition using FCTB numbers,
-          // scaled to estimated portion. Trust model if difference is small.
-          const grams = base.dishes[i].portion_grams || top.typical_portion_grams || 100;
-          const ratio = grams / (top.typical_portion_grams || 100);
-          const n = top.nutrition_per_portion ?? {};
-          const dn = base.dishes[i].nutrition;
-          const blend = (model: number, fctb: number | undefined) => {
-            if (typeof fctb !== "number") return model;
-            const scaled = fctb * ratio;
-            // If model is wildly off (>50% diff), prefer FCTB; else 70/30 toward model.
-            return Math.abs(model - scaled) / Math.max(scaled, 1) > 0.5
-              ? Math.round(scaled)
-              : Math.round(model * 0.7 + scaled * 0.3);
-          };
-          base.dishes[i].nutrition = {
-            calories: blend(dn.calories, n.calories),
-            protein_g: blend(dn.protein_g, n.protein_g),
-            carbs_g: blend(dn.carbs_g, n.carbs_g),
-            fat_g: blend(dn.fat_g, n.fat_g),
-            fiber_g: blend(dn.fiber_g, n.fiber_g),
-            iron_mg: blend(dn.iron_mg, n.iron_mg),
-            sodium_mg: blend(dn.sodium_mg, n.sodium_mg),
-          };
-        }),
-      );
-      return { ragGrounding: grounding };
-    }
-
     const profileMeta = {
       profileIncomplete: missingProfileFields(profile).length > 0,
       missingProfileFields: missingProfileFields(profile),
       bmi: computeBMI(profile),
     };
 
-    // 1) Primary pass: Gemini 2.5 Pro (fast, multimodal-strong)
-    let primary: z.infer<typeof AnalysisSchema>;
+    // Primary pass: Gemini 2.5 Flash
     try {
-      primary = await runVision(VISION_MODEL_NAME);
+      const analysis = await runVision(VISION_MODEL_NAME);
+      return { 
+        ...analysis, 
+        modelUsed: VISION_MODEL_NAME, 
+        ragGrounding: [], 
+        ...profileMeta 
+      };
     } catch (err) {
       return friendlyError(err);
-    }
-
-    const lowReason = isLowConfidence(primary);
-    if (!lowReason) {
-      const { ragGrounding } = await enrichWithRag(primary);
-      return { ...primary, modelUsed: VISION_MODEL_NAME, ragGrounding, ...profileMeta };
-    }
-
-    // 2) Fallback pass: Gemini Flash for a second read on ambiguous plates
-    console.log(`[analyzePlate] Gemini Pro low-confidence (${lowReason}) — retrying with Gemini Flash`);
-    try {
-      const fallback = await runVision(VISION_FALLBACK_MODEL_NAME);
-      // Prefer fallback ONLY if it actually improved confidence
-      const fallbackLow = isLowConfidence(fallback);
-      if (!fallbackLow || (fallback.dishes.length > primary.dishes.length)) {
-        const { ragGrounding } = await enrichWithRag(fallback);
-        return {
-          ...fallback,
-          modelUsed: VISION_FALLBACK_MODEL_NAME,
-          fallbackReason: `Switched to Gemini Flash: ${lowReason}`,
-          ragGrounding,
-          ...profileMeta,
-        };
-      }
-      // Both low — return the more detailed one, flagged
-      const { ragGrounding } = await enrichWithRag(primary);
-      return {
-        ...primary,
-        modelUsed: VISION_MODEL_NAME,
-        fallbackReason: `Both models had low confidence (${lowReason}). Try a brighter, closer photo.`,
-        ragGrounding,
-        ...profileMeta,
-      };
-    } catch (err) {
-      console.error("[analyzePlate] Gemini Flash fallback failed", err);
-      const { ragGrounding } = await enrichWithRag(primary);
-      return {
-        ...primary,
-        modelUsed: VISION_MODEL_NAME,
-        fallbackReason: `Fallback unavailable (${lowReason}).`,
-        ragGrounding,
-        ...profileMeta,
-      };
     }
   });
 
