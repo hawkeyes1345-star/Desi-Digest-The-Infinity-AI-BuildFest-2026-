@@ -39,10 +39,10 @@ const docsConfig = {
 
 const team = [
   { name: "Safin", role: "Team Lead, Product Manager, Product Idea", email: "srrahman355@gmail.com" },
-  { name: "Tasfiq Tasin", role: "Backend, Supabase, Gemini Integration", email: "muhammadtasin18@gmail.com" },
+  { name: "Tasfiq Tasin", role: "Backend, Full-Stack AI, Gemini, Supabase & Deployment", email: "muhammadtasin18@gmail.com" },
   { name: "Mohammed Rayyanul", role: "Frontend and Application UI", email: "hawkeyes1345@gmail.com" },
   { name: "Sakib Mahmud", role: "LLM Model Training Support", email: "sakibmahmud1076@gmail.com" },
-  { name: "Nafisa", role: "Project Video, Research Analysis, Market Acceptance Research", email: "nafisanazlee3@gmail.com" },
+  { name: "Nafisa Karim", role: "Project Video, Research Analysis, Market Acceptance Research", email: "nafisanazlee3@gmail.com" },
 ];
 
 const techStack = [
