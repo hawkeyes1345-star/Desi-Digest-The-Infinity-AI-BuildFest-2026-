@@ -6,6 +6,7 @@ import { ALLOWED_IMAGE_MIME_TYPES, normalizeImageMimeType, parseImageDataUrl } f
 import { BOUDI_KNOWLEDGE } from "@/lib/nanumoni-knowledge";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { type Goal, type Profile, summarizeProfile } from "@/lib/profile.functions";
+import { aggregateNutrition, enrichFoodsWithNutrition } from "@/lib/nutrition-data.server";
 
 
 
@@ -43,6 +44,8 @@ const AnalysisSchema = z.object({
             fat_g: z.number().default(0),
             fiber_g: z.number().default(0),
             iron_mg: z.number().default(0),
+            vitaminA_ugRAE: z.number().default(0),
+            zinc_mg: z.number().default(0),
             sodium_mg: z.number().default(0),
           })
           .default({
@@ -52,9 +55,19 @@ const AnalysisSchema = z.object({
             fat_g: 0,
             fiber_g: 0,
             iron_mg: 0,
+            vitaminA_ugRAE: 0,
+            zinc_mg: 0,
             sodium_mg: 0,
           })
           .describe("Per-dish nutrition for the estimated portion"),
+        localName: z.string().optional(),
+        source: z.enum(["local_db", "usda", "gemini_estimate", "fallback"]).optional(),
+        nutrition_source: z
+          .enum(["local_db", "usda", "gemini_estimate", "fallback"])
+          .optional(),
+        nutrition_confidence: z.enum(["high", "medium", "low"]).optional(),
+        matched_food_name: z.string().optional(),
+        nutrition_note: z.string().optional(),
         note: z.string().default("").describe("1-line Nanumoni note on this specific item (warm, local)"),
       }),
     )
@@ -185,6 +198,9 @@ const AnalysisSchema = z.object({
       "1-3 budget-friendly Deshi alternatives if the user has student_budget goal OR a low budget_bdt. Empty array if not relevant.",
     ),
   sources: z.array(z.string()).default([]).describe("Knowledge sources cited, e.g. 'FCTB', 'icddr,b'"),
+  nutritionEstimated: z.boolean().default(false),
+  nutritionSources: z.array(z.string()).default([]),
+  nutritionNote: z.string().default(""),
 });
 
 export type PlateAnalysis = z.infer<typeof AnalysisSchema> & {
@@ -214,7 +230,7 @@ const VISION_SYSTEM = `You are Nanumoni, a Bangladeshi nutrition expert with dee
 
 Recognize Bangladeshi cooking cues: mustard oil sheen, panch phoron, posto, kalo jeera, paanch foron tadka, banana-leaf serving, steel thala/bati.
 
-Estimate portion sizes realistically for a typical Bangladeshi household plate. Use the provided FCTB-grounded knowledge base for nutrition numbers.
+Estimate portion sizes realistically for a typical Bangladeshi household plate. Identify dish names and portions carefully. Nutrition numbers will be database-enriched after vision parsing, so do not invent precise nutrition values when uncertain.
 
 You MUST personalize every output (healthScore, healthExplanation, idealPlateComparison, goalAlignment, goalAdjustedTargets, makeItHealthierTips, personalizedSuggestions) to the user's GOALS and TDEE. The same plate scores differently for different goals — be honest and explainable about why.
 
@@ -337,7 +353,7 @@ ${perMealHint}
 ACTIVE GOAL PLAYBOOK (apply these rules to scoring + swaps + targets):
 ${playbook}
 
-CRITICAL: For EVERY dish in dishes[], fill nutrition (per the estimated portion_grams) and a 1-line warm note. Also fill substitutions (concrete one-for-one swaps), portionAdjustment (plain-English for THIS user), and budgetAlternatives where relevant.
+CRITICAL: For EVERY dish in dishes[], fill name, portion, portion_grams, confidence, and a 1-line warm note. Nutrition numbers are checked after vision parsing against local food data and USDA, so use best-effort values only if obvious. Also fill substitutions (concrete one-for-one swaps), portionAdjustment (plain-English for THIS user), and budgetAlternatives where relevant.
 
 Extra user note: ${freeText?.trim() || "(none)"}`;
 }
@@ -430,7 +446,7 @@ export const analyzePlate = createServerFn({ method: "POST" })
 
 ${buildUserContextBlock(profile, data.userContext)}
 
-Use this knowledge base as ground truth for nutrition values and ideal plate comparison:
+Use this knowledge base for food recognition, ideal plate comparison, and practical guidance:
 ---
 ${BOUDI_KNOWLEDGE}
 ---
@@ -440,7 +456,7 @@ Return a complete JSON analysis matching the required schema.
 CRITICAL JSON RULES:
 1. Return VALID JSON ONLY. No markdown, no triple backticks, unless the tool requires it.
 2. If only one food is visible (e.g., rice/bhat), still return it in the "dishes" array.
-3. If nutrition values are uncertain, provide your best estimate or null.
+3. If nutrition values are uncertain, provide your best estimate or leave the schema defaults; server-side enrichment will calculate nutrition from local/USDA data.
 4. If it's not a full plate, set detected=true and blurry=false, and explain it's a partial view.
 5. Every personalized field MUST reflect the user's goals — not generic advice. Be specific, warm, and explainable.`;
 
@@ -537,7 +553,7 @@ CRITICAL JSON RULES:
                 portion: "visible bowl portion",
                 confidence: "medium",
                 note: "Only one food item is visible.",
-                nutrition: { calories: 200, protein_g: 4, carbs_g: 45, fat_g: 0, fiber_g: 1, iron_mg: 0.5, sodium_mg: 5 }
+                nutrition: { calories: 205, protein_g: 4, carbs_g: 45, fat_g: 0.4, fiber_g: 0.6, iron_mg: 0.5, vitaminA_ugRAE: 0, zinc_mg: 0.8, sodium_mg: 5 }
               }
             ] : [],
             healthScore: 5,
@@ -555,10 +571,41 @@ CRITICAL JSON RULES:
 
       console.info("[plate-analysis] phase:after_schema_parse");
 
+      phase = "nutrition_enrichment";
+      console.info("[plate-analysis] phase:before_nutrition_enrichment", {
+        dishes: analysis.dishes.length,
+      });
+      if (analysis.detected && !analysis.blurry && analysis.dishes.length > 0) {
+        const enrichedDishes = await enrichFoodsWithNutrition(analysis.dishes, supabase);
+        const nutrition = aggregateNutrition(enrichedDishes);
+        const nutritionSources = Array.from(
+          new Set(enrichedDishes.map((dish) => dish.nutrition_source)),
+        );
+
+        analysis = {
+          ...analysis,
+          dishes: enrichedDishes,
+          nutrition,
+          nutritionEstimated: true,
+          nutritionSources,
+          nutritionNote: "Nutrition is estimated because portion size is based on the image.",
+          sources: Array.from(new Set([...(analysis.sources ?? []), ...nutritionSources])),
+        };
+      }
+      console.info("[plate-analysis] phase:after_nutrition_enrichment");
+
       phase = "rag_lookup";
       console.info("[plate-analysis] phase:before_rag_lookup");
-      // Placeholder for RAG lookup
-      console.info("[plate-analysis] phase:after_rag_lookup");
+      const ragGrounding = (analysis.dishes ?? [])
+        .filter((dish: any) => dish.matched_food_name)
+        .map((dish: any) => ({
+          dish: dish.name,
+          matched: dish.matched_food_name,
+          similarity: dish.nutrition_confidence === "high" ? 0.9 : dish.nutrition_confidence === "medium" ? 0.75 : 0.5,
+        }));
+      console.info("[plate-analysis] phase:after_rag_lookup", {
+        matches: ragGrounding.length,
+      });
 
       console.info("[plate-analysis] phase:success");
 
@@ -571,7 +618,7 @@ CRITICAL JSON RULES:
       return { 
         ...analysis, 
         modelUsed: VISION_MODEL_NAME, 
-        ragGrounding: [], 
+        ragGrounding,
         ...profileMeta 
       };
 

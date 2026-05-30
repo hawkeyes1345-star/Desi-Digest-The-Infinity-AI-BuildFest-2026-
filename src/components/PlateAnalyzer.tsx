@@ -471,7 +471,17 @@ function AnalysisCard({ analysis }: { analysis: PlateAnalysis }) {
               {analysis.fallbackReason}
             </span>
           )}
+          {analysis.nutritionEstimated && (
+            <span className="rounded-full bg-secondary px-2 py-0.5 text-secondary-foreground">
+              Estimated nutrition
+            </span>
+          )}
         </div>
+        {analysis.nutritionEstimated && (
+          <p className="mt-2 text-xs text-muted-foreground">
+            Estimated from image + nutrition database.
+          </p>
+        )}
       </div>
 
 
@@ -534,14 +544,22 @@ function AnalysisCard({ analysis }: { analysis: PlateAnalysis }) {
                   </span>
                 </div>
                 {d.nutrition && (
-                  <div className="mt-2 grid grid-cols-3 gap-1.5 text-[11px] sm:grid-cols-6">
+                  <div className="mt-2 grid grid-cols-3 gap-1.5 text-[11px] sm:grid-cols-7">
                     <Macro label="kcal" value={`${Math.round(d.nutrition.calories)}`} />
                     <Macro label="P" value={`${Math.round(d.nutrition.protein_g)}g`} />
                     <Macro label="C" value={`${Math.round(d.nutrition.carbs_g)}g`} />
                     <Macro label="F" value={`${Math.round(d.nutrition.fat_g)}g`} />
                     <Macro label="Fiber" value={`${Math.round(d.nutrition.fiber_g)}g`} />
+                    <Macro label="Iron" value={`${d.nutrition.iron_mg.toFixed(1)}mg`} />
                     <Macro label="Na" value={`${Math.round(d.nutrition.sodium_mg)}mg`} />
                   </div>
+                )}
+                {((d.source || d.nutrition_source) || d.nutrition_confidence) && (
+                  <p className="mt-2 text-[11px] text-muted-foreground">
+                    Nutrition source: {formatNutritionSource(d.source || d.nutrition_source)}
+                    {d.nutrition_confidence ? ` · ${d.nutrition_confidence} confidence` : ""}
+                    {d.matched_food_name ? ` · matched ${d.matched_food_name}` : ""}
+                  </p>
                 )}
                 {d.note && (
                   <p className="mt-2 text-xs text-foreground/80">{d.note}</p>
@@ -754,6 +772,14 @@ function Stat({
       {children}
     </div>
   );
+}
+
+function formatNutritionSource(source?: string) {
+  if (source === "local_db") return "local food data";
+  if (source === "usda") return "USDA FoodData Central";
+  if (source === "gemini_estimate") return "estimated fallback";
+  if (source === "fallback") return "curated fallback";
+  return "nutrition database";
 }
 
 function Macro({ label, value }: { label: string; value: string }) {
