@@ -2,17 +2,24 @@ import type { MealLog } from "@/lib/meals.functions";
 import type { Profile } from "@/lib/profile.functions";
 
 const DEMO_SESSION_KEY = "deshi-digest-demo-session";
+const DEMO_MEALS_KEY = "deshi-digest-demo-meals";
 
 export function isDemoSession() {
   return typeof window !== "undefined" && localStorage.getItem(DEMO_SESSION_KEY) === "1";
 }
 
 export function startDemoSession() {
-  if (typeof window !== "undefined") localStorage.setItem(DEMO_SESSION_KEY, "1");
+  if (typeof window === "undefined") return;
+
+  localStorage.setItem(DEMO_SESSION_KEY, "1");
+  localStorage.setItem(DEMO_MEALS_KEY, "[]");
 }
 
 export function endDemoSession() {
-  if (typeof window !== "undefined") localStorage.removeItem(DEMO_SESSION_KEY);
+  if (typeof window === "undefined") return;
+
+  localStorage.removeItem(DEMO_SESSION_KEY);
+  localStorage.removeItem(DEMO_MEALS_KEY);
 }
 
 export const demoProfile: Profile = {
@@ -36,43 +43,53 @@ export const demoProfile: Profile = {
   onboarded_at: new Date().toISOString(),
 };
 
-export const demoMeals: MealLog[] = [
-  {
-    id: "demo-breakfast",
+type DemoMealInput = Pick<
+  MealLog,
+  "meal_type" | "name" | "calories" | "protein_g" | "fat_g" | "carbs_g" | "fiber_g" | "water_ml" | "source"
+>;
+
+function saveDemoMeals(meals: MealLog[]) {
+  if (typeof window !== "undefined") localStorage.setItem(DEMO_MEALS_KEY, JSON.stringify(meals));
+}
+
+export function getDemoMeals() {
+  if (typeof window === "undefined") return [];
+
+  try {
+    const parsed = JSON.parse(localStorage.getItem(DEMO_MEALS_KEY) ?? "[]");
+    return Array.isArray(parsed) ? (parsed as MealLog[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function addDemoMeal(input: DemoMealInput) {
+  const meal: MealLog = {
+    id: "demo-" + crypto.randomUUID(),
     logged_at: new Date().toISOString(),
-    meal_type: "breakfast",
-    name: "Ruti + dim bhaji + cha",
-    notes: "Demo meal",
-    calories: 430,
-    protein_g: 18,
-    fat_g: 16,
-    carbs_g: 52,
-    sugar_g: 8,
-    sodium_mg: 520,
-    fiber_g: 5,
-    water_ml: 300,
-    health_score: 7,
-    source: "manual",
+    meal_type: input.meal_type,
+    name: input.name,
+    notes: null,
+    calories: input.calories,
+    protein_g: input.protein_g,
+    fat_g: input.fat_g,
+    carbs_g: input.carbs_g,
+    sugar_g: 0,
+    sodium_mg: 0,
+    fiber_g: input.fiber_g,
+    water_ml: input.water_ml,
+    health_score: null,
+    source: input.source,
     image_url: null,
     analysis: null,
-  },
-  {
-    id: "demo-lunch",
-    logged_at: new Date().toISOString(),
-    meal_type: "lunch",
-    name: "Bhat + masoor dal + rui mach + pui shak",
-    notes: "Demo meal",
-    calories: 720,
-    protein_g: 34,
-    fat_g: 22,
-    carbs_g: 92,
-    sugar_g: 5,
-    sodium_mg: 780,
-    fiber_g: 11,
-    water_ml: 500,
-    health_score: 8,
-    source: "manual",
-    image_url: null,
-    analysis: null,
-  },
-];
+  };
+  const meals = [meal, ...getDemoMeals()];
+  saveDemoMeals(meals);
+  return meal;
+}
+
+export function deleteDemoMeal(id: string) {
+  const meals = getDemoMeals().filter((meal) => meal.id !== id);
+  saveDemoMeals(meals);
+  return meals;
+}

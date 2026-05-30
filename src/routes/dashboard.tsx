@@ -4,7 +4,14 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { getMyProfile, setAlternativeMode } from "@/lib/profile.functions";
-import { demoMeals, demoProfile, endDemoSession, isDemoSession } from "@/lib/demo-session";
+import {
+  addDemoMeal,
+  deleteDemoMeal,
+  demoProfile,
+  endDemoSession,
+  getDemoMeals,
+  isDemoSession,
+} from "@/lib/demo-session";
 import { listRecentMeals, logMeal, deleteMeal, type MealLog } from "@/lib/meals.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -75,12 +82,17 @@ function Dashboard() {
   const del = useServerFn(deleteMeal);
 
   const demo = isDemoSession();
+  const [guestMeals, setGuestMeals] = useState<MealLog[]>(() => (demo ? getDemoMeals() : []));
   const profileQ = useQuery({ queryKey: ["profile"], queryFn: () => getProfile(), enabled: !demo });
   const mealsQ = useQuery({ queryKey: ["meals"], queryFn: () => listMeals(), enabled: !demo });
 
   const delMut = useMutation({
     mutationFn: (id: string) => del({ data: { id } }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["meals"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["meals"] });
+      toast.success("Meal deleted");
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Couldn't delete meal"),
   });
 
   const altMut = useMutation({
@@ -97,8 +109,18 @@ function Dashboard() {
     navigate({ to: "/" });
   }
 
+  function handleDeleteMeal(id: string) {
+    if (demo) {
+      setGuestMeals(deleteDemoMeal(id));
+      toast.success("Meal deleted");
+      return;
+    }
+
+    delMut.mutate(id);
+  }
+
   const today = startOfDay(new Date());
-  const meals = demo ? demoMeals : (mealsQ.data ?? []);
+  const meals = demo ? guestMeals : (mealsQ.data ?? []);
 
   const todays = meals.filter((m) => new Date(m.logged_at) >= today);
 
@@ -226,7 +248,10 @@ function Dashboard() {
                     </Button>
                   }
                 />
-                <LogMealDialog />
+                <LogMealDialog
+                  demo={demo}
+                  onDemoMealLogged={(meal) => setGuestMeals((current) => [meal, ...current])}
+                />
                 <Link to="/plan">
                   <Button size="sm" variant="outline">
                     <Sparkles className="h-4 w-4" /> Today's plan
@@ -332,7 +357,7 @@ function Dashboard() {
                   />
                   <button
                     aria-label="Delete meal"
-                    onClick={() => delMut.mutate(m.id)}
+                    onClick={() => handleDeleteMeal(m.id)}
                     className="absolute right-3 top-3 rounded-full bg-background/80 p-1.5 text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
@@ -421,7 +446,13 @@ function MacroRing({
   );
 }
 
-function LogMealDialog() {
+function LogMealDialog({
+  demo = false,
+  onDemoMealLogged,
+}: {
+  demo?: boolean;
+  onDemoMealLogged?: (meal: MealLog) => void;
+}) {
   const qc = useQueryClient();
   const log = useServerFn(logMeal);
   const [open, setOpen] = useState(false);
@@ -437,22 +468,26 @@ function LogMealDialog() {
   });
 
   const mut = useMutation({
-    mutationFn: () =>
-      log({
-        data: {
-          meal_type: form.meal_type,
-          name: form.name.trim() || "Meal",
-          calories: Number(form.calories) || 0,
-          protein_g: Number(form.protein_g) || 0,
-          fat_g: Number(form.fat_g) || 0,
-          carbs_g: Number(form.carbs_g) || 0,
-          fiber_g: Number(form.fiber_g) || 0,
-          water_ml: Number(form.water_ml) || 0,
-          source: "manual",
-        },
-      }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["meals"] });
+    mutationFn: async () => {
+      const meal = {
+        meal_type: form.meal_type,
+        name: form.name.trim() || "Meal",
+        calories: Number(form.calories) || 0,
+        protein_g: Number(form.protein_g) || 0,
+        fat_g: Number(form.fat_g) || 0,
+        carbs_g: Number(form.carbs_g) || 0,
+        fiber_g: Number(form.fiber_g) || 0,
+        water_ml: Number(form.water_ml) || 0,
+        source: "manual" as const,
+      };
+
+      if (demo) return addDemoMeal(meal);
+
+      return log({ data: meal });
+    },
+    onSuccess: (meal) => {
+      if (demo) onDemoMealLogged?.(meal);
+      else qc.invalidateQueries({ queryKey: ["meals"] });
       toast.success("Logged ✓");
       setOpen(false);
       setForm({ meal_type: "lunch", name: "", calories: "", protein_g: "", fat_g: "", carbs_g: "", fiber_g: "", water_ml: "" });
