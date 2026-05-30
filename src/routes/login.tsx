@@ -1,11 +1,12 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { isDemoSession, startDemoSession } from "@/lib/demo-session";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Sprout } from "lucide-react";
+import { Sprout, UserRound } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/login")({
@@ -21,6 +22,11 @@ function LoginPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    if (isDemoSession()) {
+      navigate({ to: "/dashboard" });
+      return;
+    }
+
     supabase.auth.getSession().then(({ data }) => {
       if (data.session) navigate({ to: "/dashboard" });
     });
@@ -49,6 +55,12 @@ function LoginPage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  function continueAsGuest() {
+    startDemoSession();
+    toast.success("Guest mode started.");
+    navigate({ to: "/dashboard" });
   }
 
   return (
@@ -96,6 +108,20 @@ function LoginPage() {
             {loading ? "Please wait…" : mode === "signin" ? "Sign in" : "Create account"}
           </Button>
         </form>
+
+        {mode === "signin" ? (
+          <div className="mt-4 space-y-4">
+            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+              <span className="h-px flex-1 bg-border" />
+              <span>or</span>
+              <span className="h-px flex-1 bg-border" />
+            </div>
+            <Button type="button" variant="outline" className="w-full" onClick={continueAsGuest}>
+              <UserRound className="h-4 w-4" />
+              Continue as guest
+            </Button>
+          </div>
+        ) : null}
 
         <p className="mt-5 text-center text-sm text-muted-foreground">
           {mode === "signin" ? "New here?" : "Already have an account?"}{" "}
