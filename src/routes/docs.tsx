@@ -28,6 +28,7 @@ import {
 import { Button } from "@/components/ui/button";
 import logoMark from "@/assets/logo-mark.png";
 import { VideoBackground } from "@/components/VideoBackground";
+import { Footer } from "@/components/Footer";
 
 const docsConfig = {
   isPublic: true,
@@ -103,11 +104,11 @@ const changelog = [
 export const Route = createFileRoute("/docs")({
   head: () => ({
     meta: [
-      { title: "Documentation - Deshi Digest / Nanumoni" },
+      { title: "Documentation - Desi Diet / Nanumoni / Nanumoni" },
       {
         name: "description",
         content:
-          "Public project documentation, pitch overview, architecture, AI model notes, team, and roadmap for Deshi Digest / Nanumoni.",
+          "Public project documentation, pitch overview, architecture, AI model notes, team, and roadmap for Desi Diet / Nanumoni / Nanumoni.",
       },
     ],
   }),
@@ -175,9 +176,9 @@ function DocsPage() {
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
           <Link to="/" className="flex min-w-0 items-center gap-3">
             <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full shadow-warm ring-1 ring-primary/30">
-              <img src={logoMark} alt="Deshi Digest logo" width={40} height={40} className="h-full w-full object-cover" />
+              <img src={logoMark} alt="Desi Diet / Nanumoni logo" width={40} height={40} className="h-full w-full object-cover" />
             </span>
-            <span className="truncate font-display text-lg font-semibold tracking-normal sm:text-xl">Deshi Digest Docs</span>
+            <span className="truncate font-display text-lg font-semibold tracking-normal sm:text-xl">Desi Diet / Nanumoni Docs</span>
           </Link>
           <nav className="flex shrink-0 items-center gap-2">
             <Link to="/">
@@ -205,7 +206,7 @@ function DocsPage() {
             </div>
             <div className="space-y-4">
               <h1 className="max-w-4xl font-display text-4xl font-semibold tracking-normal text-balance sm:text-6xl">
-                Deshi Digest / Nanumoni public documentation
+                Desi Diet / Nanumoni / Nanumoni public documentation
               </h1>
               <p className="max-w-3xl text-base leading-8 text-muted-foreground sm:text-lg">
                 A culturally-aware nutrition companion for Bangladesh that combines local food knowledge, Gemini-powered
@@ -296,7 +297,7 @@ function DocsPage() {
               <div className="glass rounded-lg p-6">
                 <h3 className="font-display text-xl font-semibold tracking-normal">Product Overview</h3>
                 <p className="mt-3 text-sm leading-7 text-muted-foreground">
-                  Deshi Digest is a nutrition companion built around Bangladeshi food culture. It helps users chat about
+                  Desi Diet / Nanumoni is a nutrition companion built around Bangladeshi food culture. It helps users chat about
                   meals, analyze plates, track history, and receive practical suggestions grounded in local ingredients and
                   responsible AI boundaries.
                 </p>
@@ -530,23 +531,7 @@ function DocsPage() {
         </div>
       </main>
 
-      <footer className="mt-16 glass-nav border-t-0">
-        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-6 py-8 text-sm text-foreground/75 sm:flex-row">
-          <div className="flex items-center gap-2">
-            <img src={logoMark} alt="Deshi Digest logo" className="h-6 w-6 rounded-full" />
-            <p>© {new Date().getFullYear()} Deshi Digest</p>
-          </div>
-          <p className="text-center">Built for the Google Gemini API BuildFest 2026</p>
-          <div className="flex gap-4">
-            <Link to="/" className="transition-colors hover:text-primary">
-              Home
-            </Link>
-            <Link to="/docs" className="font-bold text-primary underline underline-offset-4">
-              Docs
-            </Link>
-          </div>
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 }

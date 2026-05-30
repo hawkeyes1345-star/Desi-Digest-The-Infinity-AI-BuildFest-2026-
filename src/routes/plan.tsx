@@ -25,7 +25,7 @@ export const Route = createFileRoute("/plan")({
     const { data } = await supabase.auth.getSession();
     if (!data.session) throw redirect({ to: "/login" });
   },
-  head: () => ({ meta: [{ title: "Your Nanumoni plan — Deshi Digest" }] }),
+  head: () => ({ meta: [{ title: "Your Nanumoni plan — Desi Diet / Nanumoni" }] }),
   component: PlanPage,
 });
 

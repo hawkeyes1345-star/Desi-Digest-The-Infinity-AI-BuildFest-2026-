@@ -68,7 +68,7 @@ function ChatLayout() {
             <span className="grid h-8 w-8 place-items-center overflow-hidden rounded-full shadow-soft ring-1 ring-primary/20">
               <img src={logoMark} alt="" width={32} height={32} className="h-full w-full object-cover" />
             </span>
-            <span className="font-display text-base font-semibold">Deshi Digest</span>
+            <span className="font-display text-base font-semibold">Desi Diet / Nanumoni</span>
           </Link>
           <button
             className="md:hidden"
@@ -149,7 +149,7 @@ function ChatLayout() {
             <button className="md:hidden" onClick={() => setOpenMobile(true)} aria-label="Open menu">
               <Menu className="h-5 w-5" />
             </button>
-            <span className="font-display text-base font-semibold md:hidden">Deshi Digest</span>
+            <span className="font-display text-base font-semibold md:hidden">Desi Diet / Nanumoni</span>
           </div>
           <div className="flex items-center gap-2">
             <Button size="sm" variant="ghost" onClick={() => router.history.back()}>

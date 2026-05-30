@@ -29,7 +29,7 @@ export const Route = createFileRoute("/profile")({
     const { data } = await supabase.auth.getSession();
     if (!data.session) throw redirect({ to: "/login" });
   },
-  head: () => ({ meta: [{ title: "Your profile — Deshi Digest" }] }),
+  head: () => ({ meta: [{ title: "Your profile — Desi Diet / Nanumoni" }] }),
   component: ProfilePage,
 });
 
@@ -374,7 +374,7 @@ function ProfilePage() {
         </Card>
 
 
-        <Card title={t("appearance")} subtitle="Make Deshi Digest feel like yours.">
+        <Card title={t("appearance")} subtitle="Make Desi Diet / Nanumoni feel like yours.">
           <div className="space-y-5">
             <div>
               <Label className="mb-2 flex items-center gap-1.5 text-xs uppercase tracking-wide text-muted-foreground">

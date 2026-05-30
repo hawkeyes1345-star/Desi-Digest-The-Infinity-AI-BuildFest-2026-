@@ -34,13 +34,13 @@ import nanumoniAvatar from "@/assets/nanumoni-avatar.jpg";
 export const Route = createFileRoute("/plates")({
   head: () => ({
     meta: [
-      { title: "Plate History — Deshi Digest" },
+      { title: "Plate History — Desi Diet / Nanumoni" },
       {
         name: "description",
         content:
           "Every meal you've snapped with Nanumoni — thumbnails, dates, and health scores at a glance.",
       },
-      { property: "og:title", content: "Plate History — Deshi Digest" },
+      { property: "og:title", content: "Plate History — Desi Diet / Nanumoni" },
       {
         property: "og:description",
         content: "Browse every plate you've analyzed, sorted by date with health scores.",
@@ -144,7 +144,7 @@ function PlatesPage() {
             <span className="grid h-8 w-8 place-items-center rounded-full bg-primary text-primary-foreground">
               <Sprout className="h-4 w-4" />
             </span>
-            <span className="font-display text-base font-semibold">Deshi Digest</span>
+            <span className="font-display text-base font-semibold">Desi Diet / Nanumoni</span>
           </Link>
           <nav className="flex items-center gap-1">
             <Button variant="ghost" size="sm" onClick={() => router.history.back()}>

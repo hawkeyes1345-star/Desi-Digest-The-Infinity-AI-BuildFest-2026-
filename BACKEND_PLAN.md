@@ -2,7 +2,7 @@
 
 ## Goal
 
-Make the Deshi Digest backend work with Supabase auth, database tables, row-level security, storage, Gemini AI chat, food search, plate analysis, and meal/profile persistence.
+Make the Desi Diet / Nanumoni backend work with Supabase auth, database tables, row-level security, storage, Gemini AI chat, food search, plate analysis, and meal/profile persistence.
 
 ## 1. Supabase Project Setup
 
