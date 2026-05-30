@@ -28,8 +28,5 @@ Safin contributed as the team leader and provided the main project idea.
 ### Sakib Mahmud — LLM Model Trainer
 Sakib Mahmud contributed to the LLM model training-related work.
 
-### Mostofa Morshed Sayem — Project Guidance and Initial Briefing Support
-Mostofa Morshed Sayem provided project guidance and initial briefing support during the planning and coordination stage.
-
 ## Notes
 This document describes the project roles and contribution areas in a factual and professional way. It does not include API keys, passwords, private credentials, or personal team discussions.
