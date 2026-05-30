@@ -9,7 +9,7 @@
 | Nafisa | Video |
 | Safin | Team leader and main idea |
 | Sakib Mahmud | LLM model trainer |
-| Mostofa Morshed Sayem | Project guidance and initial briefing support |
+
 
 ## Detailed Contributions
 
