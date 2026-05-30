@@ -266,7 +266,7 @@ function DocsPage() {
           {[
             { label: "Live route", value: "/docs", icon: FileText },
             { label: "Access", value: "Public", icon: LockKeyhole },
-            { label: "Core AI", value: "Gemini", icon: Sparkles },
+            { label: "Core AI", value: "Hybrid AI Stack", icon: Sparkles },
             { label: "Database", value: "Supabase", icon: Database },
           ].map((item) => (
             <div key={item.label} className="glass-soft rounded-lg p-4">
@@ -299,7 +299,7 @@ function DocsPage() {
                 <p className="mt-3 text-sm leading-7 text-muted-foreground">
                   Desi Diet / Nanumoni is a nutrition companion built around Bangladeshi food culture. It helps users chat about
                   meals, analyze plates, track history, and receive practical suggestions grounded in local ingredients and
-                  responsible AI boundaries.
+                  responsible AI boundaries. The system uses Gemini for language reasoning and image understanding, embeddings/RAG for Bangladeshi food knowledge retrieval, Supabase-backed food and user data, model routing for AI tasks, and a custom model training direction for improving culturally aware nutrition guidance over time.
                 </p>
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
