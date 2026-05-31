@@ -150,10 +150,9 @@ function ChatInner({ threadId, initialMessages }: { threadId: string; initialMes
                   <img src={nanumoniAvatar} alt="Nanumoni" width={32} height={32} className="mt-1 h-8 w-8 shrink-0 rounded-full ring-1 ring-border" />
                   <div className="min-w-0 flex-1">
                     <MessageResponse>{text}</MessageResponse>
-                    {(m.sourceLabel || typeof m.geminiUsed === "boolean") && (
+                    {m.sourceLabel && (
                       <div className="mt-2 flex flex-wrap gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                        {m.sourceLabel && <span className="rounded-full bg-secondary px-2 py-0.5">Source: {m.sourceLabel}</span>}
-                        <span className="rounded-full bg-secondary px-2 py-0.5">{m.geminiUsed ? "AI explanation generated from retrieved data" : "Template fallback response"}</span>
+                        <span className="rounded-full bg-secondary px-2 py-0.5">Source: {m.sourceLabel}</span>
                       </div>
                     )}
                   </div>

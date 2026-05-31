@@ -19,6 +19,16 @@ type ChatRequestBody = { message?: unknown; threadId?: string; messages?: unknow
 
 type UiPart = { type: "text"; text: string };
 
+type TemplateResponse = {
+  intent: ReturnType<typeof classifyMessageIntent>;
+  term: string;
+  template: string;
+  context: Record<string, unknown>;
+  sourceLabel: string;
+  hasRetrievedData: boolean;
+  skipGemini?: boolean;
+};
+
 function extractLastUserMessage(body: ChatRequestBody) {
   if (typeof body.message === "string") return body.message;
   if (Array.isArray(body.messages)) {
@@ -30,43 +40,93 @@ function extractLastUserMessage(body: ChatRequestBody) {
   return "";
 }
 
-async function buildTemplateResponse(message: string, supabase: any) {
+function startOfTodayIso() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return today.toISOString();
+}
+
+function roundNumber(value: unknown) {
+  const number = Number(value || 0);
+  return Number.isFinite(number) ? Math.round(number) : 0;
+}
+
+function loggedMealReviewTemplate(rows: any[]) {
+  if (!rows.length) {
+    return "Ajker logged meal ami ekhono dekhte pacchi na. Food name type korun or plate upload korun, tahole ami check kore bolbo.\nTemplate fallback response.";
+  }
+
+  return [
+    "Ajker logged meal data:",
+    ...rows.map((m: any) => {
+      const nutrients = [
+        roundNumber(m.calories) + " kcal",
+        roundNumber(m.protein_g) + "g protein",
+        roundNumber(m.carbs_g) + "g carbs",
+        roundNumber(m.fat_g) + "g fat",
+      ].join(", ");
+      const score = typeof m.health_score === "number" ? ", health score " + Number(m.health_score).toFixed(1) + "/10" : "";
+      return "- " + m.meal_type + ": " + m.name + " (" + nutrients + score + ")";
+    }),
+  ].join("\n");
+}
+
+async function buildTemplateResponse(message: string, supabase: any): Promise<TemplateResponse> {
   const intent = classifyMessageIntent(message);
   const term = extractLikelyLookupTerm(message, intent);
 
   if (intent === "nutrition") {
     const nutrition = await lookupNutrition(term, supabase);
-    return { intent, term, template: nutritionTemplate(nutrition), context: { nutritionData: nutrition }, sourceLabel: nutrition.sourceLabel };
+    return { intent, term, template: nutritionTemplate(nutrition), context: { nutritionData: nutrition }, sourceLabel: nutrition.sourceLabel, hasRetrievedData: true };
   }
 
   if (intent === "medicine") {
     const [rxnorm, openfda] = await Promise.all([lookupRxNorm(term), lookupOpenFda(term)]);
-    return { intent, term, template: medicineTemplate(rxnorm, openfda), context: { medicineData: rxnorm, openfdaData: openfda }, sourceLabel: "RxNorm / openFDA" };
+    return { intent, term, template: medicineTemplate(rxnorm, openfda), context: { medicineData: rxnorm, openfdaData: openfda }, sourceLabel: "RxNorm / openFDA", hasRetrievedData: true };
   }
 
   if (intent === "condition") {
     const condition = await lookupWhoIcd(term);
-    return { intent, term, template: conditionTemplate(condition), context: { conditionData: condition }, sourceLabel: condition.sourceLabel };
+    return { intent, term, template: conditionTemplate(condition), context: { conditionData: condition }, sourceLabel: condition.sourceLabel, hasRetrievedData: true };
   }
 
   if (intent === "health_safe_food_recommendation") {
-    return { intent, term, template: healthSafeFoodRecommendationTemplate(message), context: {}, sourceLabel: "General health guidelines" };
+    return { intent, term, template: healthSafeFoodRecommendationTemplate(message), context: {}, sourceLabel: "General health guidelines", hasRetrievedData: false };
+  }
+
+  if (intent === "logged_meal_review") {
+    const { data } = await supabase
+      .from("meal_logs")
+      .select("meal_type,name,calories,protein_g,carbs_g,fat_g,fiber_g,sugar_g,sodium_mg,health_score,notes,source,logged_at,analysis")
+      .gte("logged_at", startOfTodayIso())
+      .order("logged_at", { ascending: false })
+      .limit(10);
+    const rows = Array.isArray(data) ? data : [];
+    return {
+      intent,
+      term,
+      template: loggedMealReviewTemplate(rows),
+      context: rows.length ? { mealHistory: rows } : {},
+      sourceLabel: rows.length ? "Supabase meal history" : "Template fallback response",
+      hasRetrievedData: rows.length > 0,
+      skipGemini: rows.length === 0,
+    };
   }
 
   if (intent === "meal_history") {
     const { data } = await supabase.from("meal_logs").select("meal_type,name,calories,logged_at").order("logged_at", { ascending: false }).limit(5);
     const rows = Array.isArray(data) ? data : [];
     const template = rows.length
-      ? ["Recent meal history:", ...rows.map((m: any) => "- " + m.meal_type + ": " + m.name + " (" + Math.round(Number(m.calories || 0)) + " kcal)"), "Source: Supabase meal history.", "Template fallback response."].join("\n")
-      : "I do not see recent meal history yet. Add meals from plate analysis or the dashboard first.\nSource: Supabase meal history.\nTemplate fallback response.";
-    return { intent, term, template, context: { mealHistory: rows }, sourceLabel: "Supabase meal history" };
+      ? ["Recent meal history:", ...rows.map((m: any) => "- " + m.meal_type + ": " + m.name + " (" + Math.round(Number(m.calories || 0)) + " kcal)"), "Template fallback response."].join("\n")
+      : "I do not see recent meal history yet. Add meals from plate analysis or the dashboard first.\nTemplate fallback response.";
+    return { intent, term, template, context: rows.length ? { mealHistory: rows } : {}, sourceLabel: rows.length ? "Supabase meal history" : "Template fallback response", hasRetrievedData: rows.length > 0 };
   }
 
   if (intent === "general_chat") {
-    return { intent, term, template: generalChatTemplate(message), context: {}, sourceLabel: "AI/template conversation" };
+    return { intent, term, template: generalChatTemplate(message), context: {}, sourceLabel: "Gemini conversation", hasRetrievedData: false };
   }
 
-  return { intent, term, template: unknownTemplate(), context: {}, sourceLabel: sourceLabelForIntent(intent) };
+  return { intent, term, template: unknownTemplate(), context: {}, sourceLabel: sourceLabelForIntent(intent), hasRetrievedData: false };
 }
 
 export const Route = createFileRoute("/api/chat")({
@@ -113,7 +173,7 @@ export const Route = createFileRoute("/api/chat")({
         let usedGemini = false;
         let fallbackReason: string | undefined;
 
-        if (isSimpleGreeting || isVeryShort) {
+        if (isSimpleGreeting || isVeryShort || built.skipGemini) {
           assistantText = built.template;
         } else {
           const chatResponse = await generateChatResponse({ 
@@ -123,9 +183,7 @@ export const Route = createFileRoute("/api/chat")({
             userProfile
           });
           usedGemini = chatResponse.usedGemini;
-          assistantText = usedGemini
-            ? chatResponse.text
-            : built.template + (chatResponse.fallbackReason ? "\n\nAI explanation is temporarily limited, but here are the facts from the database." : "");
+          assistantText = usedGemini ? chatResponse.text : built.template;
           fallbackReason = chatResponse.fallbackReason;
         }
 
@@ -148,11 +206,13 @@ export const Route = createFileRoute("/api/chat")({
         
         // Final source label logic
         let sourceLabel = built.sourceLabel;
-        if (usedGemini) {
-          sourceLabel = built.context && Object.keys(built.context).length > 0
-            ? `${built.sourceLabel} + Gemini conversation`
-            : "Gemini conversation";
-        } else if (fallbackReason) {
+        if (usedGemini && built.intent === "logged_meal_review" && built.hasRetrievedData) {
+          sourceLabel = "Supabase meal history + Gemini explanation";
+        } else if (usedGemini && built.hasRetrievedData) {
+          sourceLabel = built.sourceLabel + " + Gemini conversation";
+        } else if (usedGemini) {
+          sourceLabel = "Gemini conversation";
+        } else if (fallbackReason || built.skipGemini) {
           sourceLabel = "Template fallback response";
         }
 

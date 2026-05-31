@@ -4,6 +4,7 @@ export type MessageIntent =
   | "condition"
   | "health_safe_food_recommendation"
   | "general_chat"
+  | "logged_meal_review"
   | "meal_history"
   | "unknown";
 
@@ -32,6 +33,13 @@ const HEALTH_RECOMMENDATION_WORDS = [
 
 const HISTORY_WORDS = ["history", "logged", "log", "today", "yesterday", "meal history", "what did i eat"];
 
+const LOGGED_MEAL_REVIEW_PATTERNS = [
+  /\b(today|ajke|ajker|aaj|aajker)\b.*\b(logged|log|meal|plate|khabar|khawa|khaisi|kheyechi|eat|ate)\b/,
+  /\b(logged|log)\b.*\b(meal|plate|food|khabar)\b/,
+  /\b(last|latest|recent)\b.*\b(plate|meal|food|khabar)\b/,
+  /\b(my|amar)\b.*\b(plate|meal|logged meal|meal history)\b/,
+];
+
 export function classifyMessageIntent(message: string): MessageIntent {
   const text = message.toLowerCase().replace(/\s+/g, " ").trim();
   if (!text) return "unknown";
@@ -40,7 +48,10 @@ export function classifyMessageIntent(message: string): MessageIntent {
   if (/^(hi|hello|hey|salam|assalamu|assalamu alaikum|nanu|hola|namaste)$/.test(text)) return "general_chat";
   if (text.length < 3) return "unknown";
 
+  if (LOGGED_MEAL_REVIEW_PATTERNS.some((pattern) => pattern.test(text))) return "logged_meal_review";
   if (HISTORY_WORDS.some((word) => text.includes(word)) && /\b(i|my|today|yesterday|logged|ate)\b/.test(text)) return "meal_history";
+
+  if (/\b(skip|light|something light)\b.*\b(dinner|meal|khabar)\b/.test(text)) return "general_chat";
 
   const hasNutrition = NUTRITION_WORDS.some((word) => text.includes(word));
   const hasCondition = CONDITION_WORDS.some((word) => text.includes(word));

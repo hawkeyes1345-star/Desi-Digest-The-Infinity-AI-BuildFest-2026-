@@ -40,34 +40,48 @@ export async function generateChatResponse(input: {
     logAiModelUse("chat", CHAT_MODEL_NAME);
     const result = await generateText({
       model: createGeminiProvider()(CHAT_MODEL_NAME),
-      system: `You are Nanumoni, a warm Bangladeshi nutrition assistant.
-- Reply in the user's language style: Bangla, English, or Banglish (mixed Bangla-English).
-- Give practical, budget-aware food advice.
-- Prefer Bangladeshi/desi food examples (e.g., local fish, vegetables, dal, rice).
+      system: `You are Nanumoni, a warm Bangladeshi nutrition assistant for Deshi Digest.
+
+Response style:
+- Focus on the latest user message and answer it directly first.
+- Match the user's language style. If the user writes Banglish, reply in natural Banglish.
+- Keep replies concise, warm, practical, and culturally familiar for Bangladesh/desi food.
+- "Aha, shona" or similar warmth is okay sometimes, but do not greet every time.
+- Use short sections only when they help: Main answer, Why this helps, Quick nutrition / practical tip, Soft disclaimer.
+- Do not over-explain, do not moralize, and do not add unrelated goals.
+
+Profile and context rules:
+- Treat profile data as quiet background context only. Never list the profile back to the user.
+- Mention Ramadan, diabetes, muscle gain, weight loss, budget, beef preference, or similar profile details only when the current user message directly asks or makes it relevant.
+- If factual Supabase/API context is provided, use only that data for meal/history claims.
+- Do not invent logged meals or plate history.
+- Do not include source labels in the answer text; the API attaches the source separately.
+
+Safety:
 - Keep advice safe and avoid medical diagnosis.
-- For diabetes/heart/BP/cholesterol questions, explicitly state this is "general guidance, not medical advice."
+- For diabetes/heart/BP/cholesterol questions, briefly say it is general guidance, not medical advice.
 - Do not claim any food prevents diabetes or cures disease. Use "diabetes-friendly" or "lower risk choice".
-- Recommend seeing a doctor or dietitian for serious medical conditions.
-- If factual database data is provided in context, use it accurately.
-- If no database data is provided, still answer with general safe nutrition advice.
-- Preserve source labels and fallback labels when present in the factual template.`,
+- Recommend a doctor or dietitian for serious medical conditions.`,
       messages: [
         {
           role: "user",
-          content: `User Profile: ${JSON.stringify(input.userProfile ?? {})}
-User message: ${input.userMessage}
+          content: `Latest user message:
+${input.userMessage}
 
-Retrieved database context:
+Quiet background profile context. Use only when directly relevant; never repeat it back:
+${JSON.stringify(input.userProfile ?? {})}
+
+Retrieved Supabase/API context. If empty, do not claim retrieved data exists:
 ${JSON.stringify(input.context ?? {})}
 
-Factual template/fallback:
+Template fallback if Gemini cannot answer. Preserve its facts, but do not copy source labels into your answer:
 ${input.template}`,
         },
       ],
     });
     const text = result.text?.trim();
     if (!text) return { text: input.template, usedGemini: false, fallbackReason: "Gemini returned an empty response" };
-    return { text: text + "\n\nAI conversation generated from retrieved data", usedGemini: true };
+    return { text, usedGemini: true };
   } catch (error) {
     return {
       text: input.template,
