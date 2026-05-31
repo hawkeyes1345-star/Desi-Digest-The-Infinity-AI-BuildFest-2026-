@@ -340,15 +340,17 @@ export function PlateAnalyzer({ trigger, userContext }: Props) {
           {analysis && lowQuality && !mutation.isPending && (
             <NanumoniTroubleCard
               title={
-                analysis.blurry
-                  ? "The photo is a little blurry, shona"
-                  : !analysis.detected
-                    ? "Nanumoni can't quite see food here"
-                    : "Nanumoni is not fully sure about this plate"
+                analysis.detectionUnavailable
+                  ? "Image food detection is temporarily unavailable"
+                  : analysis.blurry
+                    ? "The photo is a little blurry, shona"
+                    : !analysis.detected
+                      ? "Nanumoni can't identify food from this image"
+                      : "Nanumoni is not fully sure about this plate"
               }
               message={
                 analysis.nanumoniMessage ||
-                "Try a top-down photo in good light, with the whole plate in frame and nothing covering the food."
+                "Image food detection is temporarily unavailable. You can type the food name and I will search the nutrition database."
               }
               tips={[
                 "Hold the phone right over the plate (top-down)",

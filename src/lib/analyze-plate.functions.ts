@@ -40,6 +40,9 @@ export type PlateAnalysis = {
   nutritionNote: string;
   modelUsed: "edamam-image-food" | "template-fallback";
   fallbackReason?: string;
+  detectionUnavailable?: boolean;
+  debugMessage?: string;
+  errorCode?: string;
   profileIncomplete?: boolean;
   missingProfileFields?: string[];
   bmi?: number | null;
@@ -101,6 +104,7 @@ export const analyzePlate = createServerFn({ method: "POST" })
     const profile = (profileRow as Profile | null) ?? null;
     const profileMeta = { profileIncomplete: missingProfileFields(profile).length > 0, missingProfileFields: missingProfileFields(profile), bmi: computeBMI(profile) };
     const imageDataUrl = data.imageDataUrl || "data:" + mimeType + ";base64," + imageBase64;
+    const isDevelopment = process.env.NODE_ENV !== "production";
 
     const edamam = await lookupEdamamImageFood(imageDataUrl);
     if (!edamam.detected || !edamam.foods.length) {
@@ -108,7 +112,7 @@ export const analyzePlate = createServerFn({ method: "POST" })
         detected: false,
         blurry: false,
         nanumoniMessage: edamam.error
-          ? "Food image detection is temporarily unavailable. You can still type the food name and I will search the nutrition database."
+          ? "Image food detection is temporarily unavailable. You can type the food name and I will search the nutrition database." + (isDevelopment && edamam.errorCode ? " Dev: " + edamam.errorCode + (edamam.debugMessage ? " - " + edamam.debugMessage : "") : "")
           : "I could not identify food from this image. Try typing the food name for a nutrition lookup.",
         dishes: [],
         nutrition: emptyNutrition(),
@@ -129,7 +133,10 @@ export const analyzePlate = createServerFn({ method: "POST" })
         nutritionSources: [],
         nutritionNote: "Template fallback response.",
         modelUsed: "template-fallback",
-        fallbackReason: edamam.error,
+        fallbackReason: isDevelopment ? edamam.error : edamam.error ? "Image food detection is temporarily unavailable" : undefined,
+        detectionUnavailable: Boolean(edamam.error),
+        debugMessage: isDevelopment ? edamam.debugMessage : undefined,
+        errorCode: edamam.errorCode,
         ragGrounding: [],
         ...profileMeta,
       };

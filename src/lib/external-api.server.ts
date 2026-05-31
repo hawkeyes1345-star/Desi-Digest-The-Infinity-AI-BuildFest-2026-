@@ -164,40 +164,176 @@ export async function lookupWhoIcd(query: string): Promise<ConditionLookupResult
   }
 }
 
+
 export type EdamamImageFoodResult = {
   detected: boolean;
   foods: Array<{ name: string; confidence?: number; nutrition?: Record<string, number> }>;
   sourceLabel: string;
+  publicMessage?: string;
   error?: string;
+  errorCode?: string;
+  statusCode?: number;
+  debugMessage?: string;
+  visionAccess?: "available" | "missing_or_forbidden" | "unknown";
 };
 
+const EDAMAM_IMAGE_MAX_BYTES = 4_000_000;
+const EDAMAM_FRIENDLY_UNAVAILABLE = "Image food detection is temporarily unavailable. You can type the food name and I will search the nutrition database.";
+
+function isDevelopment() {
+  return process.env.NODE_ENV !== "production";
+}
+
+function edamamError(input: {
+  code: string;
+  message: string;
+  statusCode?: number;
+  debugMessage?: string;
+  visionAccess?: EdamamImageFoodResult["visionAccess"];
+}): EdamamImageFoodResult {
+  const debugMessage = input.debugMessage || input.message;
+  console.error("[edamam-image-food]", {
+    code: input.code,
+    statusCode: input.statusCode,
+    message: debugMessage,
+    visionAccess: input.visionAccess || "unknown",
+  });
+  return {
+    detected: false,
+    foods: [],
+    sourceLabel: "Edamam Vision API",
+    publicMessage: EDAMAM_FRIENDLY_UNAVAILABLE,
+    error: isDevelopment() ? input.message : EDAMAM_FRIENDLY_UNAVAILABLE,
+    errorCode: input.code,
+    statusCode: input.statusCode,
+    debugMessage: isDevelopment() ? debugMessage : undefined,
+    visionAccess: input.visionAccess || "unknown",
+  };
+}
+
+function nutrientQuantityMap(totalNutrients: any): Record<string, number> | undefined {
+  if (!totalNutrients || typeof totalNutrients !== "object") return undefined;
+  const out: Record<string, number> = {};
+  for (const [key, value] of Object.entries(totalNutrients)) {
+    const quantity = (value as any)?.quantity;
+    if (typeof quantity === "number") out[key] = quantity;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
+function foodsFromEdamamVision(json: any): EdamamImageFoodResult["foods"] {
+  const foods: EdamamImageFoodResult["foods"] = [];
+  const parsedFood = json?.parsed?.food;
+  if (parsedFood?.label) {
+    foods.push({ name: String(parsedFood.label), nutrition: parsedFood.nutrients });
+  }
+  const recipe = json?.recipe;
+  const ingredients = Array.isArray(recipe?.ingredients) ? recipe.ingredients : [];
+  for (const ingredient of ingredients) {
+    const name = ingredient?.foodMatch || ingredient?.food || ingredient?.text;
+    if (name) foods.push({ name: String(name), nutrition: nutrientQuantityMap(ingredient?.nutrients) });
+  }
+  const ingredientLines = Array.isArray(recipe?.ingredientLines) ? recipe.ingredientLines : [];
+  for (const line of ingredientLines) {
+    if (typeof line === "string" && line.trim()) foods.push({ name: line.trim() });
+  }
+  if (!foods.length && recipe?.label) {
+    foods.push({ name: String(recipe.label), nutrition: nutrientQuantityMap(recipe.totalNutrients) });
+  }
+  const seen = new Set<string>();
+  return foods.filter((food) => {
+    const key = food.name.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).slice(0, 5);
+}
+
 export async function lookupEdamamImageFood(imageDataUrl: string): Promise<EdamamImageFoodResult> {
+  // Server-only credentials. Never use VITE_EDAMAM_* here because those would expose keys to the browser.
   const appId = process.env.EDAMAM_APP_ID?.trim();
   const appKey = process.env.EDAMAM_APP_KEY?.trim();
   if (!appId || !appKey) {
-    return { detected: false, foods: [], sourceLabel: "Edamam", error: "Edamam image food detection is not configured" };
+    return edamamError({
+      code: "EDAMAM_ENV_MISSING",
+      message: "Missing EDAMAM_APP_ID or EDAMAM_APP_KEY on the server",
+      visionAccess: "unknown",
+    });
   }
+
+  const match = imageDataUrl.match(/^data:([^;]+);base64,(.+)$/);
+  if (!match) {
+    return edamamError({ code: "EDAMAM_INVALID_IMAGE", message: "Image must be a base64 data URI" });
+  }
+
+  const mimeType = match[1];
+  const base64 = match[2];
+  const approxBytes = Math.floor((base64.length * 3) / 4);
+  if (approxBytes > EDAMAM_IMAGE_MAX_BYTES) {
+    return edamamError({
+      code: "EDAMAM_IMAGE_TOO_LARGE",
+      message: "Image is too large for Edamam Vision API after resizing",
+      debugMessage: "Image size " + approxBytes + " bytes exceeds limit " + EDAMAM_IMAGE_MAX_BYTES,
+    });
+  }
+  if (!/^image\/(jpeg|jpg|png|webp)$/i.test(mimeType)) {
+    return edamamError({ code: "EDAMAM_UNSUPPORTED_IMAGE_TYPE", message: "Unsupported image type for Edamam: " + mimeType });
+  }
+
+  const url = new URL("https://api.edamam.com/api/food-database/nutrients-from-image");
+  url.searchParams.set("app_id", appId);
+  url.searchParams.set("app_key", appKey);
+  url.searchParams.set("beta", "true");
+
+  let response: Response;
   try {
-    const match = imageDataUrl.match(/^data:([^;]+);base64,(.+)$/);
-    if (!match) throw new Error("Invalid image data URL");
-    const bytes = Uint8Array.from(atob(match[2]), (char) => char.charCodeAt(0));
-    const file = new Blob([bytes], { type: match[1] });
-    const url = new URL("https://api.edamam.com/api/food-database/v2/parser");
-    url.searchParams.set("app_id", appId);
-    url.searchParams.set("app_key", appKey);
-    const form = new FormData();
-    form.set("image", file, "plate.jpg");
-    const response = await fetch(url, { method: "POST", body: form });
-    if (!response.ok) throw new Error("Edamam image lookup failed: " + response.status);
-    const json = await response.json();
-    const hints = Array.isArray(json?.hints) ? json.hints : [];
-    const foods = hints.slice(0, 5).map((hint: any) => ({
-      name: String(hint?.food?.label || "Detected food"),
-      confidence: typeof hint?.confidence === "number" ? hint.confidence : undefined,
-      nutrition: hint?.food?.nutrients || undefined,
-    }));
-    return { detected: foods.length > 0, foods, sourceLabel: "Edamam" };
+    response = await fetch(url, {
+      method: "POST",
+      headers: { accept: "application/json", "content-type": "application/json" },
+      body: JSON.stringify({ image: imageDataUrl }),
+    });
   } catch (error) {
-    return { detected: false, foods: [], sourceLabel: "Edamam", error: error instanceof Error ? error.message : "Edamam lookup failed" };
+    return edamamError({
+      code: "EDAMAM_FETCH_FAILED",
+      message: "Failed to reach Edamam Vision API",
+      debugMessage: error instanceof Error ? error.message : String(error),
+      visionAccess: "unknown",
+    });
   }
+
+  const responseText = await response.text().catch(() => "");
+  let json: any = null;
+  try {
+    json = responseText ? JSON.parse(responseText) : null;
+  } catch {
+    json = null;
+  }
+
+  if (!response.ok) {
+    const edamamMessage = Array.isArray(json) ? json.map((e: any) => e?.message || e?.errorCode).filter(Boolean).join("; ") : json?.message || json?.error || responseText;
+    const authFailure = response.status === 401 || response.status === 403;
+    return edamamError({
+      code: authFailure ? "EDAMAM_VISION_ACCESS_DENIED" : "EDAMAM_ENDPOINT_ERROR",
+      statusCode: response.status,
+      message: authFailure
+        ? "Edamam credentials are valid only if the account has Vision API access; request was denied with HTTP " + response.status
+        : "Edamam Vision API returned HTTP " + response.status,
+      debugMessage: edamamMessage || response.statusText,
+      visionAccess: authFailure ? "missing_or_forbidden" : "unknown",
+    });
+  }
+
+  const foods = foodsFromEdamamVision(json);
+  if (!foods.length) {
+    return edamamError({
+      code: "EDAMAM_NO_FOOD_DETECTED",
+      statusCode: response.status,
+      message: "Edamam Vision API returned success but no recognizable food items",
+      debugMessage: responseText.slice(0, 600),
+      visionAccess: "available",
+    });
+  }
+
+  console.info("[edamam-image-food] success", { statusCode: response.status, foods: foods.map((food) => food.name) });
+  return { detected: true, foods, sourceLabel: "Edamam Vision API", visionAccess: "available" };
 }
