@@ -62,15 +62,7 @@ const techStack = [
 const aiModels = [
   {
     name: "Gemini 2.5 Flash-Lite",
-    use: "Conversational nutrition guidance, meal planning, and culturally-aware explanations.",
-  },
-  {
-    name: "Gemini 2.5 Flash",
-    use: "Plate image understanding for the Analyze My Plate workflow.",
-  },
-  {
-    name: "gemini-embedding-001",
-    use: "Food knowledge retrieval and semantic matching against local nutrition context.",
+    use: "Natural-language conversation and friendly explanations over retrieved data.",
   },
 ];
 
@@ -209,7 +201,7 @@ function DocsPage() {
                 Deshi Digest public documentation
               </h1>
               <p className="max-w-3xl text-base leading-8 text-muted-foreground sm:text-lg">
-                A culturally-aware nutrition companion for Bangladesh that combines local food knowledge, Gemini-powered
+                A culturally-aware nutrition companion for Bangladesh that combines local food knowledge, API-grounded
                 chat, plate analysis, user profiles, and Supabase-backed meal history.
               </p>
             </div>
@@ -299,7 +291,7 @@ function DocsPage() {
                 <p className="mt-3 text-sm leading-7 text-muted-foreground">
                   Deshi Digest is a nutrition companion built around Bangladeshi food culture. It helps users chat about
                   meals, analyze plates, track history, and receive practical suggestions grounded in local ingredients and
-                  responsible AI boundaries. The system uses Gemini for language reasoning and image understanding, embeddings/RAG for Bangladeshi food knowledge retrieval, Supabase-backed food and user data, model routing for AI tasks, and a custom model training direction for improving culturally aware nutrition guidance over time.
+                  responsible AI boundaries. The system uses Gemini for friendly language only, Edamam for image food detection, and database/API retrieval for Bangladeshi food knowledge, Supabase-backed food and user data, model routing for AI tasks, and a custom model training direction for improving culturally aware nutrition guidance over time.
                 </p>
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
@@ -322,7 +314,7 @@ function DocsPage() {
             <div className="grid gap-4 md:grid-cols-3">
               {[
                 { title: "Chat with Nanumoni", body: "Ask nutrition questions and receive contextual guidance.", to: "/chat" },
-                { title: "Analyze My Plate", body: "Upload or capture food images for Gemini vision-assisted estimates.", to: "/plates" },
+                { title: "Analyze My Plate", body: "Upload or capture food images for Edamam-assisted detection and nutrition database estimates.", to: "/plates" },
                 { title: "Dashboard", body: "Review user profile context, meal history, and personalized summaries.", to: "/dashboard" },
               ].map((demo) => (
                 <Link key={demo.title} to={demo.to} className="group glass rounded-lg p-5 transition hover:-translate-y-0.5 hover:shadow-warm">
@@ -387,14 +379,14 @@ function DocsPage() {
                 <div className="hidden text-2xl text-primary lg:block">-&gt;</div>
                 <div className="rounded-lg bg-background/70 p-4">Vercel Server Functions</div>
                 <div className="hidden text-2xl text-primary lg:block">-&gt;</div>
-                <div className="rounded-lg bg-background/70 p-4">Gemini / Supabase / External APIs</div>
+                <div className="rounded-lg bg-background/70 p-4">Gemini explanation / Supabase / External APIs</div>
                 <div className="hidden text-2xl text-primary lg:block">-&gt;</div>
                 <div className="rounded-lg bg-background/70 p-4">Supabase Postgres + pgvector</div>
               </div>
               <pre className="mt-5 overflow-x-auto rounded-lg bg-foreground/90 p-4 text-xs leading-6 text-background">
 {`flowchart LR
   A[Frontend React/TanStack] --> B[Vercel Server Functions]
-  B --> C[Gemini / Supabase / External APIs]
+  B --> C[Gemini explanation / Supabase / External APIs]
   C --> D[Supabase Postgres + pgvector]`}
               </pre>
             </div>
@@ -405,7 +397,7 @@ function DocsPage() {
               {[
                 ["1", "User submits chat, profile, or plate input from the React UI."],
                 ["2", "TanStack Start server functions attach auth context and validate request shape."],
-                ["3", "Gemini, Supabase, and selected external APIs provide model output and reference context."],
+                ["3", "External APIs and Supabase provide lookup data; Gemini only provides optional friendly wording."],
                 ["4", "Results and user history are returned to the UI and persisted through Supabase policies."],
               ].map(([step, text]) => (
                 <div key={step} className="glass-soft rounded-lg p-5">

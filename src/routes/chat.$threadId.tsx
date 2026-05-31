@@ -1,6 +1,6 @@
+
 import { createFileRoute, useParams } from "@tanstack/react-router";
-import { useChat } from "@ai-sdk/react";
-import { DefaultChatTransport, type UIMessage } from "ai";
+import type { UIMessage } from "ai";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -33,6 +33,8 @@ const SUGGESTIONS = [
   "Ramadan iftar ideas that won't spike sugar?",
 ];
 
+type ChatMessage = UIMessage & { sourceLabel?: string; geminiUsed?: boolean };
+
 function ChatThread() {
   const { threadId } = useParams({ from: "/chat/$threadId" });
   const getMsgs = useServerFn(getThreadMessages);
@@ -41,7 +43,7 @@ function ChatThread() {
     queryFn: () => getMsgs({ data: { threadId } }),
   });
 
-  const initialMessages = useMemo<UIMessage[]>(() => {
+  const initialMessages = useMemo<ChatMessage[]>(() => {
     if (!initialQ.data) return [];
     return initialQ.data.map((m) => ({
       id: m.id,
@@ -61,53 +63,57 @@ function ChatThread() {
   return <ChatInner key={threadId} threadId={threadId} initialMessages={initialMessages} />;
 }
 
-function ChatInner({
-  threadId,
-  initialMessages,
-}: {
-  threadId: string;
-  initialMessages: UIMessage[];
-}) {
-  const transport = useMemo(
-    () =>
-      new DefaultChatTransport({
-        api: "/api/chat",
-        fetch: async (url, init) => {
-          const { data } = await supabase.auth.getSession();
-          const token = data.session?.access_token;
-          const headers = new Headers(init?.headers);
-          if (token) headers.set("Authorization", `Bearer ${token}`);
-          const originalBody = init?.body ? JSON.parse(init.body as string) : {};
-          return fetch(url, {
-            ...init,
-            headers,
-            body: JSON.stringify({ ...originalBody, threadId }),
-          });
-        },
-      }),
-    [threadId],
-  );
-
-  const { messages, sendMessage, status } = useChat({
-    id: threadId,
-    messages: initialMessages,
-    transport,
-    onError: (err) => toast.error(err.message || "Nanumoni couldn't reply. Please try again."),
-  });
-
+function ChatInner({ threadId, initialMessages }: { threadId: string; initialMessages: ChatMessage[] }) {
+  const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
+  const [status, setStatus] = useState<"ready" | "submitted">("ready");
   const [input, setInput] = useState("");
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
   useEffect(() => {
     inputRef.current?.focus();
   }, [threadId, status]);
 
-  const isBusy = status === "submitted" || status === "streaming";
+  const isBusy = status === "submitted";
 
   async function submit(text: string) {
     const trimmed = text.trim();
     if (!trimmed || isBusy) return;
     setInput("");
-    await sendMessage({ text: trimmed });
+    setStatus("submitted");
+    const optimistic: ChatMessage = {
+      id: crypto.randomUUID(),
+      role: "user",
+      parts: [{ type: "text", text: trimmed }],
+    };
+    setMessages((current) => [...current, optimistic]);
+    try {
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          ...(token ? { Authorization: "Bearer " + token } : {}),
+        },
+        body: JSON.stringify({ threadId, message: trimmed }),
+      });
+      const json = await response.json();
+      if (!response.ok) throw new Error(json?.error || "Nanumoni couldn't reply. Please try again.");
+      setMessages((current) => [
+        ...current,
+        {
+          id: json.id || crypto.randomUUID(),
+          role: "assistant",
+          parts: json.parts || [{ type: "text", text: json.text || "" }],
+          sourceLabel: json.sourceLabel,
+          geminiUsed: json.geminiUsed,
+        },
+      ]);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Nanumoni couldn't reply. Please try again.");
+    } finally {
+      setStatus("ready");
+    }
   }
 
   return (
@@ -116,27 +122,12 @@ function ChatInner({
         <ConversationContent className="mx-auto w-full max-w-3xl px-4 py-6">
           {messages.length === 0 && (
             <div className="flex flex-col items-center pt-10 text-center">
-              <img
-                src={nanumoniAvatar}
-                alt="Nanumoni"
-                width={88}
-                height={88}
-                className="h-22 w-22 rounded-full ring-2 ring-primary/30"
-              />
-              <h2 className="mt-4 font-display text-2xl font-semibold">
-                Nanumoni is listening, sona.
-              </h2>
-              <p className="mt-1 max-w-md text-sm text-muted-foreground">
-                Ask about dinner ideas, diabetes-friendly plates, iftar plans, budget meals, or any
-                Bangladeshi food.
-              </p>
+              <img src={nanumoniAvatar} alt="Nanumoni" width={88} height={88} className="h-22 w-22 rounded-full ring-2 ring-primary/30" />
+              <h2 className="mt-4 font-display text-2xl font-semibold">Nanumoni is listening, sona.</h2>
+              <p className="mt-1 max-w-md text-sm text-muted-foreground">Ask about nutrition facts, medicine references, conditions, budget meals, or Bangladeshi food.</p>
               <div className="mt-6 grid w-full max-w-xl gap-2 sm:grid-cols-2">
                 {SUGGESTIONS.map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => submit(s)}
-                    className="rounded-xl border border-border bg-card px-4 py-3 text-left text-sm leading-snug shadow-soft transition hover:-translate-y-0.5 hover:shadow-warm"
-                  >
+                  <button key={s} onClick={() => submit(s)} className="rounded-xl border border-border bg-card px-4 py-3 text-left text-sm leading-snug shadow-soft transition hover:-translate-y-0.5 hover:shadow-warm">
                     {s}
                   </button>
                 ))}
@@ -145,30 +136,26 @@ function ChatInner({
           )}
 
           {messages.map((m) => {
-            const text = m.parts
-              .map((p) => (p.type === "text" ? p.text : ""))
-              .join("");
+            const text = m.parts.map((p) => (p.type === "text" ? p.text : "")).join("");
             if (m.role === "user") {
               return (
                 <Message key={m.id} from="user">
-                  <MessageContent className="bg-primary text-primary-foreground">
-                    {text}
-                  </MessageContent>
+                  <MessageContent className="bg-primary text-primary-foreground">{text}</MessageContent>
                 </Message>
               );
             }
             return (
               <Message key={m.id} from="assistant">
                 <div className="flex w-full gap-3">
-                  <img
-                    src={nanumoniAvatar}
-                    alt="Nanumoni"
-                    width={32}
-                    height={32}
-                    className="mt-1 h-8 w-8 shrink-0 rounded-full ring-1 ring-border"
-                  />
+                  <img src={nanumoniAvatar} alt="Nanumoni" width={32} height={32} className="mt-1 h-8 w-8 shrink-0 rounded-full ring-1 ring-border" />
                   <div className="min-w-0 flex-1">
                     <MessageResponse>{text}</MessageResponse>
+                    {(m.sourceLabel || typeof m.geminiUsed === "boolean") && (
+                      <div className="mt-2 flex flex-wrap gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        {m.sourceLabel && <span className="rounded-full bg-secondary px-2 py-0.5">Source: {m.sourceLabel}</span>}
+                        <span className="rounded-full bg-secondary px-2 py-0.5">{m.geminiUsed ? "AI explanation generated from retrieved data" : "Template fallback response"}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               </Message>
@@ -177,14 +164,8 @@ function ChatInner({
 
           {status === "submitted" && (
             <div className="flex items-center gap-3 px-1 pt-2">
-              <img
-                src={nanumoniAvatar}
-                alt="Nanumoni"
-                width={28}
-                height={28}
-                className="h-7 w-7 rounded-full ring-1 ring-border"
-              />
-              <Shimmer>Nanumoni is thinking…</Shimmer>
+              <img src={nanumoniAvatar} alt="Nanumoni" width={28} height={28} className="h-7 w-7 rounded-full ring-1 ring-border" />
+              <Shimmer>Searching trusted databases…</Shimmer>
             </div>
           )}
         </ConversationContent>
@@ -194,21 +175,10 @@ function ChatInner({
       <div className="glass-soft border-t border-border/60">
         <div className="mx-auto w-full max-w-3xl p-3 sm:p-4">
           <PromptInput onSubmit={() => void submit(input)}>
-            <PromptInputTextarea
-              ref={inputRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask Nanumoni anything… (e.g. ajke ki rannha korbo?)"
-              disabled={isBusy}
-            />
+            <PromptInputTextarea ref={inputRef} value={input} onChange={(e) => setInput(e.target.value)} placeholder="Ask Nanumoni anything… (e.g. rice nutrition, paracetamol, diabetes)" disabled={isBusy} />
             <PromptInputFooter className="justify-between">
-              <p className="px-1 text-[11px] text-muted-foreground">
-                Not medical advice — consult a doctor for health concerns.
-              </p>
-              <PromptInputSubmit
-                status={status}
-                disabled={isBusy || !input.trim()}
-              />
+              <p className="px-1 text-[11px] text-muted-foreground">Not medical advice — consult a doctor for health concerns.</p>
+              <PromptInputSubmit status={isBusy ? "submitted" : "ready"} disabled={isBusy || !input.trim()} />
             </PromptInputFooter>
           </PromptInput>
         </div>

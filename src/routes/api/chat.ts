@@ -1,108 +1,131 @@
+
 import { createFileRoute } from "@tanstack/react-router";
-import { convertToModelMessages, streamText, type UIMessage } from "ai";
-import { CHAT_MODEL_NAME, VISION_MODEL_NAME, createGeminiProvider, logAiModelUse } from "@/lib/ai-gateway.server";
-import { BOUDI_SYSTEM_PROMPT } from "@/lib/nanumoni-knowledge";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
+import { classifyMessageIntent, extractLikelyLookupTerm } from "@/lib/intent-classifier";
+import { lookupNutrition, lookupOpenFda, lookupRxNorm, lookupWhoIcd } from "@/lib/external-api.server";
+import {
+  conditionTemplate,
+  generalChatTemplate,
+  medicineTemplate,
+  nutritionTemplate,
+  sourceLabelForIntent,
+  unknownTemplate,
+} from "@/lib/api-response-templates.server";
+import { generateFriendlyExplanation } from "@/lib/ai-gateway.server";
 
-type ChatRequestBody = { messages?: unknown; threadId?: string };
+type ChatRequestBody = { message?: unknown; threadId?: string; messages?: unknown; context?: unknown };
+
+type UiPart = { type: "text"; text: string };
+
+function extractLastUserMessage(body: ChatRequestBody) {
+  if (typeof body.message === "string") return body.message;
+  if (Array.isArray(body.messages)) {
+    const last = [...body.messages].reverse().find((m: any) => m?.role === "user");
+    if (last && Array.isArray((last as any).parts)) {
+      return (last as any).parts.map((p: any) => (p?.type === "text" ? p.text : "")).join(" ").trim();
+    }
+  }
+  return "";
+}
+
+async function buildTemplateResponse(message: string, supabase: any) {
+  const intent = classifyMessageIntent(message);
+  const term = extractLikelyLookupTerm(message, intent);
+
+  if (intent === "nutrition") {
+    const nutrition = await lookupNutrition(term, supabase);
+    return { intent, term, template: nutritionTemplate(nutrition), context: { nutritionData: nutrition }, sourceLabel: nutrition.sourceLabel };
+  }
+
+  if (intent === "medicine") {
+    const [rxnorm, openfda] = await Promise.all([lookupRxNorm(term), lookupOpenFda(term)]);
+    return { intent, term, template: medicineTemplate(rxnorm, openfda), context: { medicineData: rxnorm, openfdaData: openfda }, sourceLabel: "RxNorm / openFDA" };
+  }
+
+  if (intent === "condition") {
+    const condition = await lookupWhoIcd(term);
+    return { intent, term, template: conditionTemplate(condition), context: { conditionData: condition }, sourceLabel: condition.sourceLabel };
+  }
+
+  if (intent === "meal_history") {
+    const { data } = await supabase.from("meal_logs").select("meal_type,name,calories,logged_at").order("logged_at", { ascending: false }).limit(5);
+    const rows = Array.isArray(data) ? data : [];
+    const template = rows.length
+      ? ["Recent meal history:", ...rows.map((m: any) => "- " + m.meal_type + ": " + m.name + " (" + Math.round(Number(m.calories || 0)) + " kcal)"), "Source: Supabase meal history.", "Template fallback response."].join("\n")
+      : "I do not see recent meal history yet. Add meals from plate analysis or the dashboard first.\nSource: Supabase meal history.\nTemplate fallback response.";
+    return { intent, term, template, context: { mealHistory: rows }, sourceLabel: "Supabase meal history" };
+  }
+
+  if (intent === "general_chat") {
+    return { intent, term, template: generalChatTemplate(message), context: {}, sourceLabel: "AI/template conversation" };
+  }
+
+  return { intent, term, template: unknownTemplate(), context: {}, sourceLabel: sourceLabelForIntent(intent) };
+}
 
 export const Route = createFileRoute("/api/chat")({
   server: {
     handlers: {
       POST: async ({ request }) => {
         const auth = request.headers.get("authorization");
-        if (!auth?.startsWith("Bearer ")) {
-          return new Response("Unauthorized", { status: 401 });
-        }
+        if (!auth?.startsWith("Bearer ")) return Response.json({ error: "Unauthorized" }, { status: 401 });
         const token = auth.slice(7);
 
-        const SUPABASE_URL = process.env.SUPABASE_URL!;
-        const SUPABASE_PUBLISHABLE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY!;
+        const SUPABASE_URL = process.env.SUPABASE_URL;
+        const SUPABASE_PUBLISHABLE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY;
+        if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
+          return Response.json({ error: "Supabase server environment is missing" }, { status: 500 });
+        }
+
         const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
-          global: { headers: { Authorization: `Bearer ${token}` } },
+          global: { headers: { Authorization: "Bearer " + token } },
           auth: { persistSession: false, autoRefreshToken: false },
         });
 
         const { data: claimsData, error: claimsErr } = await supabase.auth.getClaims(token);
-        if (claimsErr || !claimsData?.claims?.sub) {
-          return new Response("Unauthorized", { status: 401 });
-        }
+        if (claimsErr || !claimsData?.claims?.sub) return Response.json({ error: "Unauthorized" }, { status: 401 });
         const userId = claimsData.claims.sub;
 
-        const body = (await request.json()) as ChatRequestBody;
-        const messages = body.messages;
+        const body = (await request.json().catch(() => ({}))) as ChatRequestBody;
         const threadId = body.threadId;
-        if (!Array.isArray(messages) || !threadId) {
-          return new Response("Bad request", { status: 400 });
+        const message = extractLastUserMessage(body).trim();
+        if (!threadId || !message) return Response.json({ error: "threadId and message are required" }, { status: 400 });
+
+        const { data: thread } = await supabase.from("chat_threads").select("id, title").eq("id", threadId).maybeSingle();
+        if (!thread) return Response.json({ error: "Thread not found" }, { status: 404 });
+
+        const built = await buildTemplateResponse(message, supabase);
+        const explanation = await generateFriendlyExplanation({ userMessage: message, template: built.template, context: built.context });
+        const assistantText = explanation.usedGemini
+          ? explanation.text
+          : built.template + (explanation.fallbackReason ? "\n\nAI explanation is temporarily limited, but here are the facts from the database." : "");
+
+        const userParts: UiPart[] = [{ type: "text", text: message }];
+        const assistantParts: UiPart[] = [{ type: "text", text: assistantText }];
+        const { data: inserted, error: insertError } = await supabase
+          .from("chat_messages")
+          .insert([
+            { thread_id: threadId, user_id: userId, role: "user", parts: userParts },
+            { thread_id: threadId, user_id: userId, role: "assistant", parts: assistantParts },
+          ])
+          .select("id, role, parts");
+        if (insertError) return Response.json({ error: insertError.message }, { status: 500 });
+
+        if (thread.title === "New conversation") {
+          await supabase.from("chat_threads").update({ title: message.slice(0, 60) }).eq("id", threadId);
         }
 
-        // Verify thread belongs to user
-        const { data: thread } = await supabase
-          .from("chat_threads")
-          .select("id, title")
-          .eq("id", threadId)
-          .maybeSingle();
-        if (!thread) return new Response("Thread not found", { status: 404 });
-
-        let model;
-        try {
-          logAiModelUse("chat", CHAT_MODEL_NAME);
-          model = createGeminiProvider()(CHAT_MODEL_NAME);
-        } catch (error) {
-          console.error("[chat] primary model setup failed", {
-            model: CHAT_MODEL_NAME,
-            error: error instanceof Error ? error.message : String(error),
-          });
-          try {
-            logAiModelUse("chat", VISION_MODEL_NAME);
-            model = createGeminiProvider()(VISION_MODEL_NAME);
-          } catch (fallbackError) {
-            const message = fallbackError instanceof Error ? fallbackError.message : "Gemini is not configured";
-            return new Response(message, { status: 500 });
-          }
-        }
-
-        const uiMessages = messages as UIMessage[];
-        const lastUser = [...uiMessages].reverse().find((m) => m.role === "user");
-
-        const result = streamText({
-          model,
-          system: BOUDI_SYSTEM_PROMPT,
-          messages: await convertToModelMessages(uiMessages),
-        });
-
-        return result.toUIMessageStreamResponse({
-          originalMessages: uiMessages,
-          onFinish: async ({ messages: finalMessages }) => {
-            try {
-              // Persist the most recent user message (if not already there) and the new assistant reply.
-              const newOnes = finalMessages.slice(uiMessages.length - (lastUser ? 1 : 0));
-              const rows = newOnes.map((m) => ({
-                thread_id: threadId,
-                user_id: userId,
-                role: m.role,
-                parts: JSON.parse(JSON.stringify(m.parts)),
-              }));
-              if (rows.length) {
-                const { error: insErr } = await supabase.from("chat_messages").insert(rows);
-                if (insErr) console.error("[chat] insert error", insErr);
-              }
-              // Auto-title from first user message
-              if (thread.title === "New conversation" && lastUser) {
-                const text = lastUser.parts
-                  .map((p) => (p.type === "text" ? p.text : ""))
-                  .join(" ")
-                  .trim()
-                  .slice(0, 60);
-                if (text) {
-                  await supabase.from("chat_threads").update({ title: text }).eq("id", threadId);
-                }
-              }
-            } catch (e) {
-              console.error("[chat] onFinish error", e);
-            }
-          },
+        const assistantRow = inserted?.find((row: any) => row.role === "assistant");
+        return Response.json({
+          id: assistantRow?.id || crypto.randomUUID(),
+          role: "assistant",
+          parts: assistantParts,
+          text: assistantText,
+          intent: built.intent,
+          sourceLabel: built.sourceLabel,
+          geminiUsed: explanation.usedGemini,
+          fallbackReason: explanation.fallbackReason,
         });
       },
     },

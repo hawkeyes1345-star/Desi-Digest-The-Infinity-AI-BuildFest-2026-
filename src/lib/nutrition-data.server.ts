@@ -1,6 +1,6 @@
 import { FOODS, type FoodNutrition, type FoodSeed } from "@/lib/foods-dataset";
 
-export type NutritionSource = "local_db" | "usda" | "gemini_estimate" | "fallback";
+export type NutritionSource = "local_db" | "usda" | "fallback";
 
 export type NutritionTotals = {
   calories: number;
@@ -297,7 +297,8 @@ export async function searchFoodDataCentral(query: string): Promise<FoodDataCent
   const apiKey = process.env.DATA_GOV_API_KEY?.trim();
   if (!apiKey) return null;
 
-  const url = new URL("https://api.nal.usda.gov/fdc/v1/foods/search");
+  const baseUrl = process.env.USDA_FDC_BASE_URL?.trim() || "https://api.nal.usda.gov/fdc/v1";
+  const url = new URL(`${baseUrl.replace(/\/$/, "")}/foods/search`);
   url.searchParams.set("api_key", apiKey);
   url.searchParams.set("query", query);
   url.searchParams.set("pageSize", "5");
@@ -314,7 +315,8 @@ export async function getFoodNutrition(fdcId: string | number): Promise<Nutritio
   const apiKey = process.env.DATA_GOV_API_KEY?.trim();
   if (!apiKey) return null;
 
-  const url = new URL(`https://api.nal.usda.gov/fdc/v1/food/${fdcId}`);
+  const baseUrl = process.env.USDA_FDC_BASE_URL?.trim() || "https://api.nal.usda.gov/fdc/v1";
+  const url = new URL(`${baseUrl.replace(/\/$/, "")}/food/${fdcId}`);
   url.searchParams.set("api_key", apiKey);
 
   const response = await fetch(url);
@@ -380,8 +382,8 @@ export async function estimateNutritionForFood(
     portion,
     portion_grams: grams,
     nutrition: scaleNutrition(fallback, grams, 100),
-    source: normalized === "steamed white rice" ? "fallback" : "gemini_estimate",
-    nutrition_source: normalized === "steamed white rice" ? "fallback" : "gemini_estimate",
+    source: "fallback",
+    nutrition_source: "fallback",
     nutrition_confidence: "low",
     matched_food_name: normalized === foodName.toLowerCase() ? undefined : normalized,
     nutrition_note: "Nutrition is estimated because portion size is based on the image.",
@@ -416,6 +418,44 @@ export async function enrichFoodsWithNutrition(
       nutrition_note: "Nutrition is estimated because portion size is based on the image.",
     };
   });
+}
+
+export type NutritionSearchResult = {
+  query: string;
+  name: string;
+  portion: string;
+  portion_grams: number;
+  nutrition: NutritionTotals;
+  source: NutritionSource;
+  sourceLabel: string;
+  confidence: "high" | "medium" | "low";
+  matchedFoodName?: string;
+  note: string;
+};
+
+export async function searchNutritionByQuery(
+  query: string,
+  supabase?: { from: (table: string) => any },
+): Promise<NutritionSearchResult> {
+  const enriched = await estimateNutritionForFood(query, "1 portion", undefined, supabase);
+  return {
+    query,
+    name: enriched.localName ? `${enriched.name} (${enriched.localName})` : enriched.name,
+    portion: enriched.portion,
+    portion_grams: enriched.portion_grams,
+    nutrition: enriched.nutrition,
+    source: enriched.nutrition_source,
+    sourceLabel: formatNutritionSourceLabel(enriched.nutrition_source),
+    confidence: enriched.nutrition_confidence,
+    matchedFoodName: enriched.matched_food_name,
+    note: enriched.nutrition_note,
+  };
+}
+
+export function formatNutritionSourceLabel(source: NutritionSource): string {
+  if (source === "local_db") return "Supabase Desi Food Database";
+  if (source === "usda") return "USDA FoodData Central";
+  return "Template fallback response";
 }
 
 export function aggregateNutrition(foods: EnrichedFood[]): NutritionTotals {

@@ -21,6 +21,11 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as ChatIndexRouteImport } from './routes/chat.index'
 import { Route as ChatThreadIdRouteImport } from './routes/chat.$threadId'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
+import { Route as ApiWhoIcdSearchRouteImport } from './routes/api/who-icd/search'
+import { Route as ApiRxnormSearchRouteImport } from './routes/api/rxnorm/search'
+import { Route as ApiOpenfdaSearchRouteImport } from './routes/api/openfda/search'
+import { Route as ApiNutritionSearchRouteImport } from './routes/api/nutrition/search'
+import { Route as ApiEdamamImageFoodRouteImport } from './routes/api/edamam/image-food'
 
 const ProfileRoute = ProfileRouteImport.update({
   id: '/profile',
@@ -82,6 +87,31 @@ const ApiChatRoute = ApiChatRouteImport.update({
   path: '/api/chat',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiWhoIcdSearchRoute = ApiWhoIcdSearchRouteImport.update({
+  id: '/api/who-icd/search',
+  path: '/api/who-icd/search',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiRxnormSearchRoute = ApiRxnormSearchRouteImport.update({
+  id: '/api/rxnorm/search',
+  path: '/api/rxnorm/search',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiOpenfdaSearchRoute = ApiOpenfdaSearchRouteImport.update({
+  id: '/api/openfda/search',
+  path: '/api/openfda/search',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiNutritionSearchRoute = ApiNutritionSearchRouteImport.update({
+  id: '/api/nutrition/search',
+  path: '/api/nutrition/search',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiEdamamImageFoodRoute = ApiEdamamImageFoodRouteImport.update({
+  id: '/api/edamam/image-food',
+  path: '/api/edamam/image-food',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -96,6 +126,11 @@ export interface FileRoutesByFullPath {
   '/api/chat': typeof ApiChatRoute
   '/chat/$threadId': typeof ChatThreadIdRoute
   '/chat/': typeof ChatIndexRoute
+  '/api/edamam/image-food': typeof ApiEdamamImageFoodRoute
+  '/api/nutrition/search': typeof ApiNutritionSearchRoute
+  '/api/openfda/search': typeof ApiOpenfdaSearchRoute
+  '/api/rxnorm/search': typeof ApiRxnormSearchRoute
+  '/api/who-icd/search': typeof ApiWhoIcdSearchRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -109,6 +144,11 @@ export interface FileRoutesByTo {
   '/api/chat': typeof ApiChatRoute
   '/chat/$threadId': typeof ChatThreadIdRoute
   '/chat': typeof ChatIndexRoute
+  '/api/edamam/image-food': typeof ApiEdamamImageFoodRoute
+  '/api/nutrition/search': typeof ApiNutritionSearchRoute
+  '/api/openfda/search': typeof ApiOpenfdaSearchRoute
+  '/api/rxnorm/search': typeof ApiRxnormSearchRoute
+  '/api/who-icd/search': typeof ApiWhoIcdSearchRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -124,6 +164,11 @@ export interface FileRoutesById {
   '/api/chat': typeof ApiChatRoute
   '/chat/$threadId': typeof ChatThreadIdRoute
   '/chat/': typeof ChatIndexRoute
+  '/api/edamam/image-food': typeof ApiEdamamImageFoodRoute
+  '/api/nutrition/search': typeof ApiNutritionSearchRoute
+  '/api/openfda/search': typeof ApiOpenfdaSearchRoute
+  '/api/rxnorm/search': typeof ApiRxnormSearchRoute
+  '/api/who-icd/search': typeof ApiWhoIcdSearchRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -140,6 +185,11 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/chat/$threadId'
     | '/chat/'
+    | '/api/edamam/image-food'
+    | '/api/nutrition/search'
+    | '/api/openfda/search'
+    | '/api/rxnorm/search'
+    | '/api/who-icd/search'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -153,6 +203,11 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/chat/$threadId'
     | '/chat'
+    | '/api/edamam/image-food'
+    | '/api/nutrition/search'
+    | '/api/openfda/search'
+    | '/api/rxnorm/search'
+    | '/api/who-icd/search'
   id:
     | '__root__'
     | '/'
@@ -167,6 +222,11 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/chat/$threadId'
     | '/chat/'
+    | '/api/edamam/image-food'
+    | '/api/nutrition/search'
+    | '/api/openfda/search'
+    | '/api/rxnorm/search'
+    | '/api/who-icd/search'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -180,6 +240,11 @@ export interface RootRouteChildren {
   PlatesRoute: typeof PlatesRoute
   ProfileRoute: typeof ProfileRoute
   ApiChatRoute: typeof ApiChatRoute
+  ApiEdamamImageFoodRoute: typeof ApiEdamamImageFoodRoute
+  ApiNutritionSearchRoute: typeof ApiNutritionSearchRoute
+  ApiOpenfdaSearchRoute: typeof ApiOpenfdaSearchRoute
+  ApiRxnormSearchRoute: typeof ApiRxnormSearchRoute
+  ApiWhoIcdSearchRoute: typeof ApiWhoIcdSearchRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -268,6 +333,41 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiChatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/who-icd/search': {
+      id: '/api/who-icd/search'
+      path: '/api/who-icd/search'
+      fullPath: '/api/who-icd/search'
+      preLoaderRoute: typeof ApiWhoIcdSearchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/rxnorm/search': {
+      id: '/api/rxnorm/search'
+      path: '/api/rxnorm/search'
+      fullPath: '/api/rxnorm/search'
+      preLoaderRoute: typeof ApiRxnormSearchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/openfda/search': {
+      id: '/api/openfda/search'
+      path: '/api/openfda/search'
+      fullPath: '/api/openfda/search'
+      preLoaderRoute: typeof ApiOpenfdaSearchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/nutrition/search': {
+      id: '/api/nutrition/search'
+      path: '/api/nutrition/search'
+      fullPath: '/api/nutrition/search'
+      preLoaderRoute: typeof ApiNutritionSearchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/edamam/image-food': {
+      id: '/api/edamam/image-food'
+      path: '/api/edamam/image-food'
+      fullPath: '/api/edamam/image-food'
+      preLoaderRoute: typeof ApiEdamamImageFoodRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -294,6 +394,11 @@ const rootRouteChildren: RootRouteChildren = {
   PlatesRoute: PlatesRoute,
   ProfileRoute: ProfileRoute,
   ApiChatRoute: ApiChatRoute,
+  ApiEdamamImageFoodRoute: ApiEdamamImageFoodRoute,
+  ApiNutritionSearchRoute: ApiNutritionSearchRoute,
+  ApiOpenfdaSearchRoute: ApiOpenfdaSearchRoute,
+  ApiRxnormSearchRoute: ApiRxnormSearchRoute,
+  ApiWhoIcdSearchRoute: ApiWhoIcdSearchRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

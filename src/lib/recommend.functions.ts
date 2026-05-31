@@ -1,132 +1,146 @@
+
 import { createServerFn } from "@tanstack/react-start";
-import { z } from "zod";
-import { generateText, Output } from "ai";
-import { CHAT_MODEL_NAME, VISION_MODEL_NAME, createGeminiProvider, logAiModelUse } from "@/lib/ai-gateway.server";
-import { BOUDI_KNOWLEDGE } from "@/lib/nanumoni-knowledge";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { summarizeProfile, type Profile } from "@/lib/profile.functions";
+import { computeTDEE, summarizeProfile, type Profile } from "@/lib/profile.functions";
+import { FOODS } from "@/lib/foods-dataset";
 
-const NutritionShape = z.object({
-  calories: z.number(),
-  protein_g: z.number(),
-  fat_g: z.number(),
-  carbs_g: z.number(),
-  fiber_g: z.number().default(0),
-  sugar_g: z.number().default(0),
-  sodium_mg: z.number().default(0),
-  iron_mg: z.number().default(0),
-  vitaminA_ugRAE: z.number().default(0),
-});
+export type NutritionPlan = {
+  nanumoni_opener: string;
+  daily_targets: { calories: number; protein_g: number; fiber_g: number; water_ml: number };
+  meals: Array<{
+    meal_type: "breakfast" | "lunch" | "dinner" | "snack";
+    name: string;
+    portion: string;
+    nutrition: { calories: number; protein_g: number; fat_g: number; carbs_g: number; fiber_g: number; sugar_g: number; sodium_mg: number; iron_mg: number; vitaminA_ugRAE: number };
+    est_cost_bdt: number;
+    reasoning: string;
+    swap_tip: string;
+  }>;
+  weekly_focus: string;
+  substitutions: string[];
+  restaurant_picks: Array<{ name: string; dish: string; area: string; est_cost_bdt: number; why: string }>;
+  reasoning_steps: string[];
+};
 
-const MealSuggestion = z.object({
-  meal_type: z.enum(["breakfast", "lunch", "dinner", "snack"]),
-  name: z.string().describe("Local dish name e.g. 'Lal chal + masoor dal + pui shak'"),
-  portion: z.string().describe("Bangladeshi household portion e.g. '1 cup bhat + ½ cup dal'"),
-  nutrition: NutritionShape,
-  est_cost_bdt: z.number().describe("Per-serving cost in BDT"),
-  reasoning: z.string().describe("Why this meal fits the user (2-3 sentences citing nutrients)"),
-  swap_tip: z.string().describe("Healthier swap suggestion grounded in knowledge base"),
-});
+type MealType = NutritionPlan["meals"][number]["meal_type"];
 
-const RestaurantPick = z.object({
-  name: z.string(),
-  dish: z.string(),
-  area: z.string().describe("Area / location hint, e.g. 'Dhanmondi', 'Sylhet zindabazar'"),
-  est_cost_bdt: z.number(),
-  why: z.string(),
-});
+function toPlanNutrition(food: (typeof FOODS)[number]) {
+  const n = food.nutrition_per_portion;
+  return {
+    calories: n.calories,
+    protein_g: n.protein_g,
+    fat_g: n.fat_g,
+    carbs_g: n.carbs_g,
+    fiber_g: n.fiber_g,
+    sugar_g: n.sugar_g,
+    sodium_mg: n.sodium_mg,
+    iron_mg: n.iron_mg,
+    vitaminA_ugRAE: n.vitamin_a_mcg,
+  };
+}
 
-const PlanSchema = z.object({
-  nanumoni_opener: z.string().describe("1-2 line warm Nanumoni-voice opener tied to user's profile"),
-  daily_targets: z.object({
-    calories: z.number(),
-    protein_g: z.number(),
-    fiber_g: z.number(),
-    water_ml: z.number(),
-  }),
-  meals: z.array(MealSuggestion).min(3).max(6),
-  weekly_focus: z.string().describe("This week's nutritional focus in 2-3 sentences"),
-  substitutions: z.array(z.string()).describe("3-5 healthier swap rules tailored to goals"),
-  restaurant_picks: z
-    .array(RestaurantPick)
-    .describe(
-      "Local restaurant / street-food picks that match budget+goals. EMPTY array if alternative_mode is true.",
-    ),
-  reasoning_steps: z
-    .array(z.string())
-    .describe("Transparent chain-of-thought: 3-5 bullet steps explaining how this plan was built"),
-});
+function pickFood(ids: string[]) {
+  return ids.map((id) => FOODS.find((food) => food.food_id === id)).filter(Boolean) as (typeof FOODS)[number][];
+}
 
-export type NutritionPlan = z.infer<typeof PlanSchema>;
+function meal(meal_type: MealType, foods: (typeof FOODS)[number][], cost: number, reasoning: string, swap: string) {
+  const nutrition = foods.reduce((sum, food) => {
+    const n = toPlanNutrition(food);
+    return {
+      calories: sum.calories + n.calories,
+      protein_g: sum.protein_g + n.protein_g,
+      fat_g: sum.fat_g + n.fat_g,
+      carbs_g: sum.carbs_g + n.carbs_g,
+      fiber_g: sum.fiber_g + n.fiber_g,
+      sugar_g: sum.sugar_g + n.sugar_g,
+      sodium_mg: sum.sodium_mg + n.sodium_mg,
+      iron_mg: sum.iron_mg + n.iron_mg,
+      vitaminA_ugRAE: sum.vitaminA_ugRAE + n.vitaminA_ugRAE,
+    };
+  }, { calories: 0, protein_g: 0, fat_g: 0, carbs_g: 0, fiber_g: 0, sugar_g: 0, sodium_mg: 0, iron_mg: 0, vitaminA_ugRAE: 0 });
+  return {
+    meal_type,
+    name: foods.map((food) => food.name_en).join(" + "),
+    portion: foods.map((food) => Math.round(food.typical_portion_grams) + "g " + food.name_bn).join(" + "),
+    nutrition,
+    est_cost_bdt: cost,
+    reasoning,
+    swap_tip: swap,
+  };
+}
+
+function buildPlan(profile: Profile | null): NutritionPlan {
+  const tdee = computeTDEE(profile) || 2000;
+  const weightLoss = profile?.goals?.includes("weight_loss");
+  const muscle = profile?.goals?.includes("muscle_gain");
+  const diabetes = profile?.goals?.includes("diabetes_friendly") || profile?.health_conditions?.includes("diabetes");
+  const lowSodium = profile?.goals?.includes("low_sodium") || profile?.goals?.includes("heart_healthy") || profile?.health_conditions?.includes("hypertension");
+  const targetCalories = Math.round(tdee * (weightLoss ? 0.82 : muscle ? 1.1 : 1));
+  const proteinTarget = profile?.weight_kg ? Math.round(profile.weight_kg * (muscle ? 1.6 : 1.1)) : 70;
+
+  const breakfast = meal(
+    "breakfast",
+    pickFood(["dim-bhuna", "ruti"]).length ? pickFood(["dim-bhuna", "ruti"]) : pickFood(["dim-bhuna", "masoor-dal"]),
+    70,
+    "Egg or dal adds protein, while a controlled staple portion keeps breakfast practical.",
+    diabetes ? "Use atta ruti and avoid sweet tea." : "Add fruit if you need more energy.",
+  );
+  const lunch = meal(
+    "lunch",
+    pickFood(["bhat-steamed", "masoor-dal", "pui-shak", "rohu-mach"]),
+    130,
+    "This follows the Deshi plate pattern: staple, dal, greens, and protein.",
+    diabetes ? "Reduce bhat by one third and add more shak." : "Keep oil moderate in fish curry.",
+  );
+  const dinner = meal(
+    "dinner",
+    pickFood(["chicken-curry", "pui-shak", "masoor-dal"]),
+    150,
+    "Dinner emphasizes protein and fiber so it is filling without relying only on rice.",
+    lowSodium ? "Cook with less salt and skip achar/shutki." : "Add a small rice or ruti portion if still hungry.",
+  );
+  const snack = meal(
+    "snack",
+    pickFood(["chotpoti"]),
+    60,
+    "Chickpea-based snacks give fiber and some protein; portion still matters.",
+    "Choose less tamarind-salt water and avoid extra chanachur if sodium is a concern.",
+  );
+
+  return {
+    nanumoni_opener: "Here is a database-built Deshi meal plan from your profile. Gemini was not used for nutrition lookup or calculations.",
+    daily_targets: { calories: targetCalories, protein_g: proteinTarget, fiber_g: 25, water_ml: 2200 },
+    meals: [breakfast, lunch, dinner, snack],
+    weekly_focus: diabetes
+      ? "Keep carbs consistent and pair rice/ruti with dal, fish, egg, chicken, and shak. Avoid sweet drinks and large refined-carb portions."
+      : lowSodium
+        ? "Keep salt moderate this week. Limit achar, shutki, packaged snacks, and restaurant gravies."
+        : "Build most meals around the Deshi plate: half vegetables/greens, one quarter staple, one quarter protein.",
+    substitutions: [
+      diabetes ? "Swap large white bhat portions for smaller bhat plus extra dal and shak." : "Swap deep-fried sides for bhaji or boiled egg when possible.",
+      lowSodium ? "Use lemon, chili, coriander, and roasted cumin instead of extra salt." : "Use seasonal vegetables to increase fiber without raising cost much.",
+      muscle ? "Add egg, chicken, fish, or extra dal to each main meal." : "Keep protein visible in each meal, even on budget days.",
+    ],
+    restaurant_picks: profile?.alternative_mode ? [] : [
+      { name: "Local bhat hotel", dish: "Bhat + dal + fish + shak", area: profile?.location || "nearby", est_cost_bdt: 150, why: "A common affordable option that can match the Deshi plate pattern." },
+    ],
+    reasoning_steps: [
+      "Calculated daily calories from profile TDEE when available.",
+      "Selected foods from the local Desi food dataset.",
+      "Summed calories and macros from stored nutrition values.",
+      "Applied goal rules for diabetes, sodium, weight, muscle, and budget.",
+      "Used template explanations so the plan works even when Gemini quota is unavailable.",
+    ],
+  };
+}
 
 export const generatePlan = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<NutritionPlan> => {
     const { supabase, userId } = context;
-    const { data: p } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("user_id", userId)
-      .maybeSingle();
+    const { data: p } = await supabase.from("profiles").select("*").eq("user_id", userId).maybeSingle();
     const profile = (p as Profile | null) ?? null;
-
-    let model;
-    try {
-      logAiModelUse("chat", CHAT_MODEL_NAME);
-      model = createGeminiProvider()(CHAT_MODEL_NAME);
-    } catch {
-      throw new Error("Gemini is not configured. Set GEMINI_API_KEY.");
-    }
-
-    const sys = `You are Nanumoni, a warm Bangladeshi nutrition expert. Build a personalised daily plan that is:
-- Hyper-local: rice, dal, mach, shak, bhorta, seasonal fruits.
-- Realistic Bangladeshi household portions.
-- Honest about budget (BDT) and goals.
-- Explainable: every meal gets a "reasoning" tied to nutrients in the knowledge base.
-
-If alternative_mode = ON, OMIT all restaurant_picks (return []) and bias every meal to ultra-cheap, easily-available, home-cooked Deshi ingredients.
-
-Knowledge base (treat as ground truth for nutrients):
----
-${BOUDI_KNOWLEDGE}
----`;
-
-    const userMsg = `USER PROFILE: ${summarizeProfile(profile)}
-
-Build today's plan (3-5 meals: breakfast, lunch, dinner, optional snacks). Total daily calories should match activity+goals. Show explicit reasoning_steps. Use Bangladeshi names everywhere.`;
-
-    try {
-      let experimental_output: NutritionPlan;
-      try {
-        const result = await generateText({
-          model,
-          system: sys,
-          experimental_output: Output.object({ schema: PlanSchema }),
-          messages: [{ role: "user", content: userMsg }],
-        });
-        experimental_output = result.experimental_output;
-      } catch (primaryError) {
-        console.error("[generatePlan] primary model failed", {
-          model: CHAT_MODEL_NAME,
-          error: primaryError instanceof Error ? primaryError.message : String(primaryError),
-        });
-        logAiModelUse("chat", VISION_MODEL_NAME);
-        const result = await generateText({
-          model: createGeminiProvider()(VISION_MODEL_NAME),
-          system: sys,
-          experimental_output: Output.object({ schema: PlanSchema }),
-          messages: [{ role: "user", content: userMsg }],
-        });
-        experimental_output = result.experimental_output;
-      }
-      // Force restaurants empty in alt mode regardless of model output
-      if (profile?.alternative_mode) experimental_output.restaurant_picks = [];
-      return experimental_output;
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (/429/.test(msg)) throw new Error("Nanumoni is busy — try again in a moment.");
-      if (/402/.test(msg)) throw new Error("Gemini API quota exhausted — check your Google AI billing.");
-      console.error("[generatePlan]", err);
-      throw new Error("Nanumoni couldn't draft a plan right now.");
-    }
+    const plan = buildPlan(profile);
+    plan.reasoning_steps.unshift("Profile used: " + summarizeProfile(profile));
+    return plan;
   });

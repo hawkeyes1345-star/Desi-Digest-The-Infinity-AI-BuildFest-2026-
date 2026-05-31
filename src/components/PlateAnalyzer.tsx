@@ -252,7 +252,7 @@ export function PlateAnalyzer({ trigger, userContext }: Props) {
                 Nanumoni is looking at your plate
               </DialogTitle>
               <DialogDescription className="text-xs">
-                Powered by Gemini vision + FCTB knowledge base · Not medical advice
+                Uses Edamam image food detection + nutrition databases · Not medical advice
               </DialogDescription>
             </div>
           </div>
@@ -320,8 +320,7 @@ export function PlateAnalyzer({ trigger, userContext }: Props) {
                 </p>
               </div>
               <p className="pl-8 text-xs text-muted-foreground">
-                Nanumoni is identifying each dish piece-by-piece, cross-checking FCTB + USDA,
-                and tuning the score to your current health, goals & budget.
+                Searching food image API, then cross-checking local Desi food data + USDA.
               </p>
             </div>
           )}
@@ -448,10 +447,10 @@ function AnalysisCard({ analysis }: { analysis: PlateAnalysis }) {
               "inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-semibold uppercase tracking-wide",
               "bg-primary/15 text-primary",
             )}
-            title="Google Gemini 2.5 Flash vision"
+            title="Edamam image food detection"
           >
             <Sparkles className="h-2.5 w-2.5" />
-            Gemini 2.5 Flash
+            Edamam food detection
           </span>
           {analysis.ragGrounding && analysis.ragGrounding.length > 0 && (
             <span
@@ -479,7 +478,7 @@ function AnalysisCard({ analysis }: { analysis: PlateAnalysis }) {
         </div>
         {analysis.nutritionEstimated && (
           <p className="mt-2 text-xs text-muted-foreground">
-            Estimated from image + nutrition database.
+            Detected from image, then estimated from nutrition database.
           </p>
         )}
       </div>
@@ -721,8 +720,7 @@ function AnalysisCard({ analysis }: { analysis: PlateAnalysis }) {
 
       {analysis.sources.length > 0 && (
         <p className="pt-1 text-[11px] text-muted-foreground">
-          Based on Gemini vision +{" "}
-          {analysis.sources.join(", ")}
+          Based on {analysis.sources.join(", ")}
         </p>
       )}
     </div>
@@ -777,7 +775,6 @@ function Stat({
 function formatNutritionSource(source?: string) {
   if (source === "local_db") return "local food data";
   if (source === "usda") return "USDA FoodData Central";
-  if (source === "gemini_estimate") return "estimated fallback";
   if (source === "fallback") return "curated fallback";
   return "nutrition database";
 }
