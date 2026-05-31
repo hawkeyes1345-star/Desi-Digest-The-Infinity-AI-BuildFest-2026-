@@ -10,7 +10,7 @@ import { Sprout, UserRound } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/login")({
-  head: () => ({ meta: [{ title: "Sign in — Desi Diet / Nanumoni" }] }),
+  head: () => ({ meta: [{ title: "Sign in — Deshi Digest" }] }),
   component: LoginPage,
 });
 
@@ -70,7 +70,7 @@ function LoginPage() {
           <span className="grid h-9 w-9 place-items-center rounded-full bg-primary text-primary-foreground">
             <Sprout className="h-5 w-5" />
           </span>
-          <span className="font-display text-lg font-semibold">Desi Diet / Nanumoni</span>
+          <span className="font-display text-lg font-semibold">Deshi Digest</span>
         </Link>
         <h1 className="mt-6 font-display text-2xl font-semibold">
           {mode === "signin" ? "Welcome back" : "Create your account"}

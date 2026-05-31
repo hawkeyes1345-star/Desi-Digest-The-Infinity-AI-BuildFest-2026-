@@ -104,11 +104,11 @@ const changelog = [
 export const Route = createFileRoute("/docs")({
   head: () => ({
     meta: [
-      { title: "Documentation - Desi Diet / Nanumoni" },
+      { title: "Documentation - Deshi Digest" },
       {
         name: "description",
         content:
-          "Public project documentation, pitch overview, architecture, AI model notes, team, and roadmap for Desi Diet / Nanumoni.",
+          "Public project documentation, pitch overview, architecture, AI model notes, team, and roadmap for Deshi Digest.",
       },
     ],
   }),
@@ -176,9 +176,9 @@ function DocsPage() {
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
           <Link to="/" className="flex min-w-0 items-center gap-3">
             <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full shadow-warm ring-1 ring-primary/30">
-              <img src={logoMark} alt="Desi Diet / Nanumoni logo" width={40} height={40} className="h-full w-full object-cover" />
+              <img src={logoMark} alt="Deshi Digest logo" width={40} height={40} className="h-full w-full object-cover" />
             </span>
-            <span className="truncate font-display text-lg font-semibold tracking-normal sm:text-xl">Desi Diet / Nanumoni Docs</span>
+            <span className="truncate font-display text-lg font-semibold tracking-normal sm:text-xl">Deshi Digest Docs</span>
           </Link>
           <nav className="flex shrink-0 items-center gap-2">
             <Link to="/">
@@ -206,7 +206,7 @@ function DocsPage() {
             </div>
             <div className="space-y-4">
               <h1 className="max-w-4xl font-display text-4xl font-semibold tracking-normal text-balance sm:text-6xl">
-                Desi Diet / Nanumoni public documentation
+                Deshi Digest public documentation
               </h1>
               <p className="max-w-3xl text-base leading-8 text-muted-foreground sm:text-lg">
                 A culturally-aware nutrition companion for Bangladesh that combines local food knowledge, Gemini-powered
@@ -297,7 +297,7 @@ function DocsPage() {
               <div className="glass rounded-lg p-6">
                 <h3 className="font-display text-xl font-semibold tracking-normal">Product Overview</h3>
                 <p className="mt-3 text-sm leading-7 text-muted-foreground">
-                  Desi Diet / Nanumoni is a nutrition companion built around Bangladeshi food culture. It helps users chat about
+                  Deshi Digest is a nutrition companion built around Bangladeshi food culture. It helps users chat about
                   meals, analyze plates, track history, and receive practical suggestions grounded in local ingredients and
                   responsible AI boundaries. The system uses Gemini for language reasoning and image understanding, embeddings/RAG for Bangladeshi food knowledge retrieval, Supabase-backed food and user data, model routing for AI tasks, and a custom model training direction for improving culturally aware nutrition guidance over time.
                 </p>

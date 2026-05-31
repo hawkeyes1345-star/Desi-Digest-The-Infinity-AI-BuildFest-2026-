@@ -10,11 +10,11 @@ export function Footer() {
           {/* Brand and Description */}
           <div className="space-y-4">
             <div className="flex items-center gap-2">
-              <img src={logoMark} alt="Desi Diet / Nanumoni logo" className="h-8 w-8 rounded-full shadow-soft" />
-              <span className="font-display text-xl font-bold tracking-tight">Desi Diet / Nanumoni</span>
+              <img src={logoMark} alt="Deshi Digest logo" className="h-8 w-8 rounded-full shadow-soft" />
+              <span className="font-display text-xl font-bold tracking-tight">Deshi Digest</span>
             </div>
             <p className="text-sm leading-relaxed text-foreground/75">
-              AI-powered Bangladeshi meal guidance, plate analysis, and culturally aware nutrition support.
+              AI-powered Bangladeshi meal guidance, plate analysis, and culturally aware nutrition support through Nanumoni.
             </p>
             <p className="text-xs text-foreground/60 italic">
               Built for the Google Gemini API BuildFest 2026 using Gemini, Supabase, embeddings, and RAG.
@@ -58,7 +58,7 @@ export function Footer() {
         {/* Bottom Note */}
         <div className="mt-12 border-t border-foreground/5 pt-8 text-center sm:flex sm:items-center sm:justify-between sm:text-left">
           <p className="text-xs text-foreground/60">
-            © {new Date().getFullYear()} Desi Diet / Nanumoni.
+            © {new Date().getFullYear()} Deshi Digest.
           </p>
           <p className="mt-2 text-xs text-foreground/60 sm:mt-0 italic">
             For educational and wellness guidance only; not a medical diagnosis tool.

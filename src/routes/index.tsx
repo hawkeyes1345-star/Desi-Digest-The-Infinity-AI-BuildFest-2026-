@@ -26,7 +26,7 @@ export const Route = createFileRoute("/")({
   },
   head: () => ({
     meta: [
-      { title: "Desi Diet / Nanumoni — Nanumoni's AI nutrition guide for Bangladesh" },
+      { title: "Deshi Digest — Nanumoni's AI nutrition guide for Bangladesh" },
       {
         name: "description",
         content:
@@ -62,9 +62,9 @@ function Landing() {
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
           <Link to="/" className="flex items-center gap-2">
             <span className="grid h-10 w-10 place-items-center overflow-hidden rounded-full shadow-warm ring-1 ring-primary/30">
-              <img src={logoMark} alt="Desi Diet / Nanumoni logo" width={40} height={40} className="h-full w-full object-cover" />
+              <img src={logoMark} alt="Deshi Digest logo" width={40} height={40} className="h-full w-full object-cover" />
             </span>
-            <span className="font-display text-xl font-semibold tracking-tight">Desi Diet / Nanumoni</span>
+            <span className="font-display text-xl font-semibold tracking-tight">Deshi Digest</span>
           </Link>
           <nav className="flex items-center gap-2">
             {isLoggedIn === false && (

@@ -71,14 +71,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Desi Diet / Nanumoni — Nanumoni's nutrition guide for Bangladesh" },
+      { title: "Deshi Digest — Nanumoni's nutrition guide for Bangladesh" },
       {
         name: "description",
         content:
           "Warm, culturally intelligent nutrition guidance for Bangladesh — rice, dal, mach, shak. Chat with Nanumoni, your AI Deshi nutrition companion.",
       },
-      { name: "author", content: "Desi Diet / Nanumoni" },
-      { property: "og:title", content: "Desi Diet / Nanumoni — Chat with Nanumoni" },
+      { name: "author", content: "Deshi Digest" },
+      { property: "og:title", content: "Deshi Digest — Chat with Nanumoni" },
       {
         property: "og:description",
         content: "Hyper-local Bangladeshi nutrition AI built on real FCTB food knowledge.",

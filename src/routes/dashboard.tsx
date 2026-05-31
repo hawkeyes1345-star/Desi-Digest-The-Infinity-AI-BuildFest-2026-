@@ -63,7 +63,7 @@ export const Route = createFileRoute("/dashboard")({
     const { data } = await supabase.auth.getSession();
     if (!data.session) throw redirect({ to: "/login" });
   },
-  head: () => ({ meta: [{ title: "Your nutrition dashboard — Desi Diet / Nanumoni" }] }),
+  head: () => ({ meta: [{ title: "Your nutrition dashboard — Deshi Digest" }] }),
   component: Dashboard,
 });
 
@@ -184,7 +184,7 @@ function Dashboard() {
             <span className="grid h-9 w-9 place-items-center overflow-hidden rounded-full shadow-soft ring-1 ring-primary/20">
               <img src={logoMark} alt="" width={36} height={36} className="h-full w-full object-cover" />
             </span>
-            <span className="font-display text-base font-semibold">Desi Diet / Nanumoni</span>
+            <span className="font-display text-base font-semibold">Deshi Digest</span>
           </Link>
           <nav className="flex items-center gap-1">
             <Link to="/plan">
