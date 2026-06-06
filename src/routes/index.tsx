@@ -16,6 +16,7 @@ import { Footer } from "@/components/Footer";
 
 export const Route = createFileRoute("/")({
   beforeLoad: async () => {
+    if (typeof window === "undefined") return;
     if (isDemoSession()) {
       throw redirect({ to: "/dashboard" });
     }

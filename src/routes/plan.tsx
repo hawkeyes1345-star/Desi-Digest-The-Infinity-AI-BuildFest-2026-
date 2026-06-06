@@ -22,8 +22,17 @@ import nanumoniAvatar from "@/assets/nanumoni-avatar.jpg";
 
 export const Route = createFileRoute("/plan")({
   beforeLoad: async () => {
-    const { data } = await supabase.auth.getSession();
-    if (!data.session) throw redirect({ to: "/login" });
+    if (typeof window === "undefined") return;
+    try {
+      const { data, error } = await supabase.auth.getSession();
+      if (error || !data?.session) {
+        throw redirect({ to: "/login" });
+      }
+    } catch (err) {
+      if (err && typeof err === "object" && "to" in err) throw err;
+      console.error("[auth] Session check failed on plan load, redirecting:", err);
+      throw redirect({ to: "/login" });
+    }
   },
   head: () => ({ meta: [{ title: "Your Nanumoni plan — Deshi Digest" }] }),
   component: PlanPage,

@@ -13,8 +13,17 @@ import logoMark from "@/assets/logo-mark.png";
 
 export const Route = createFileRoute("/chat")({
   beforeLoad: async () => {
-    const { data } = await supabase.auth.getSession();
-    if (!data.session) throw redirect({ to: "/login" });
+    if (typeof window === "undefined") return;
+    try {
+      const { data, error } = await supabase.auth.getSession();
+      if (error || !data?.session) {
+        throw redirect({ to: "/login" });
+      }
+    } catch (err) {
+      if (err && typeof err === "object" && "to" in err) throw err;
+      console.error("[auth] Session check failed on chat load, redirecting:", err);
+      throw redirect({ to: "/login" });
+    }
   },
   component: ChatLayout,
 });

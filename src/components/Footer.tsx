@@ -17,7 +17,7 @@ export function Footer() {
               AI-powered Bangladeshi meal guidance, plate analysis, and culturally aware nutrition support through Nanumoni.
             </p>
             <p className="text-xs text-foreground/60 italic">
-              Built with Gemini for friendly explanations, plus Supabase and trusted nutrition/health APIs.
+              Built with clinical-style AI for friendly explanations, plus Supabase and trusted nutrition/health APIs.
             </p>
           </div>
 
