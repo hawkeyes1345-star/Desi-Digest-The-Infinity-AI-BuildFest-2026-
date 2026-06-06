@@ -1,5 +1,5 @@
 import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
@@ -27,6 +27,8 @@ import {
   Settings,
   Heart,
   Trash2,
+  AlertTriangle,
+  RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -75,13 +77,45 @@ const MS_PER_DAY = 86_400_000;
 
 // ─── Route ───────────────────────────────────────────────────────────────────
 
+function DashboardErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
+  console.error("[Dashboard Route Error]:", error);
+  return (
+    <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4 text-center">
+      <AlertTriangle className="h-12 w-12 text-destructive animate-bounce" />
+      <h1 className="mt-4 font-display text-xl font-semibold">Dashboard encountered a problem</h1>
+      <p className="mt-2 text-sm text-muted-foreground max-w-md">
+        {error instanceof Error ? error.message : "Something went wrong while displaying your dashboard."}
+      </p>
+      <div className="mt-6 flex gap-2">
+        <Button onClick={() => reset()} className="shadow-warm">
+          <RefreshCw className="mr-2 h-4 w-4" /> Try again
+        </Button>
+        <a href="/">
+          <Button variant="outline">Go back home</Button>
+        </a>
+      </div>
+    </div>
+  );
+}
+
 export const Route = createFileRoute("/dashboard")({
   beforeLoad: async () => {
-    if (typeof window !== "undefined" && isDemoSession()) return;
-    const { data } = await supabase.auth.getSession();
-    if (!data.session) throw redirect({ to: "/login" });
+    if (typeof window === "undefined") return;
+    if (isDemoSession()) return;
+    try {
+      const { data, error } = await supabase.auth.getSession();
+      if (error || !data?.session) {
+        throw redirect({ to: "/login" });
+      }
+    } catch (err) {
+      if (err && typeof err === "object" && "to" in err) throw err;
+      console.error("[auth] Session check failed on dashboard load, redirecting:", err);
+      throw redirect({ to: "/login" });
+    }
   },
   head: () => ({ meta: [{ title: "Your nutrition dashboard — Deshi Digest" }] }),
+  pendingComponent: DashboardSkeleton,
+  errorComponent: DashboardErrorComponent,
   component: Dashboard,
 });
 
@@ -101,7 +135,8 @@ function greeting(): string {
   return "Shubho shondha";
 }
 
-function capitalize(s: string): string {
+function capitalize(s: string | null | undefined): string {
+  if (!s) return "";
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
@@ -149,9 +184,26 @@ function Dashboard() {
   const del = useServerFn(deleteMeal);
 
   const demo = isDemoSession();
-  const [guestMeals, setGuestMeals] = useState<MealLog[]>(() => (demo ? getDemoMeals() : []));
-  const profileQ = useQuery({ queryKey: ["profile"], queryFn: () => getProfile(), enabled: !demo });
-  const mealsQ = useQuery({ queryKey: ["meals"], queryFn: () => listMeals(), enabled: !demo });
+  const [guestMeals, setGuestMeals] = useState<MealLog[]>([]);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    if (isDemoSession()) {
+      setGuestMeals(getDemoMeals());
+    }
+  }, []);
+
+  const profileQ = useQuery({
+    queryKey: ["profile"],
+    queryFn: () => getProfile(),
+    enabled: !demo && mounted,
+  });
+  const mealsQ = useQuery({
+    queryKey: ["meals"],
+    queryFn: () => listMeals(),
+    enabled: !demo && mounted,
+  });
 
   const delMut = useMutation({
     mutationFn: (id: string) => del({ data: { id } }),
@@ -189,24 +241,21 @@ function Dashboard() {
     delMut.mutate(id);
   }
 
-  // ─── Loading state ─────────────────────────────────────────────────────────
-  // Show skeleton while initial server data is loading (not for demo mode).
-  const isLoading = !demo && (profileQ.isLoading || mealsQ.isLoading);
-  if (isLoading) return <DashboardSkeleton />;
-
   // ─── Derived data ──────────────────────────────────────────────────────────
   const today = startOfDay(new Date());
   const meals = demo ? guestMeals : (mealsQ.data ?? []);
-  const todays = meals.filter((m) => new Date(m.logged_at) >= today);
+  const todays = Array.isArray(meals) ? meals.filter((m) => m && m.logged_at && new Date(m.logged_at) >= today) : [];
   const totals = accumulateTotals(todays);
 
   // Last 7 days chart data
   const last7: DayBar[] = useMemo(() => {
+    if (!Array.isArray(meals)) return [];
     const days: DayBar[] = [];
     for (let i = 6; i >= 0; i--) {
       const d = startOfDay(new Date(Date.now() - i * MS_PER_DAY));
       const next = new Date(d.getTime() + MS_PER_DAY);
       const ms = meals.filter((m) => {
+        if (!m || !m.logged_at) return false;
         const t = new Date(m.logged_at);
         return t >= d && t < next;
       });
@@ -221,11 +270,13 @@ function Dashboard() {
 
   // Streak: consecutive days from today with at least 1 logged meal
   const streak = useMemo(() => {
+    if (!Array.isArray(meals)) return 0;
     let s = 0;
     for (let i = 0; i < 30; i++) {
       const d = startOfDay(new Date(Date.now() - i * MS_PER_DAY));
       const next = new Date(d.getTime() + MS_PER_DAY);
       const has = meals.some((m) => {
+        if (!m || !m.logged_at) return false;
         const t = new Date(m.logged_at);
         return t >= d && t < next;
       });
@@ -235,8 +286,36 @@ function Dashboard() {
     return s;
   }, [meals]);
 
-  const p = demo ? demoProfile : profileQ.data;
-  const needsOnboarding = !p || !p.age || p.goals.length === 0;
+  const p = demo ? demoProfile : (profileQ.data ?? null);
+  const needsOnboarding = !p || !p.age || !p.goals || !Array.isArray(p.goals) || p.goals.length === 0;
+
+  // ─── Loading state ─────────────────────────────────────────────────────────
+  // Show skeleton while initial server data is loading (not for demo mode).
+  const isLoading = !mounted || (!demo && (profileQ.isLoading || mealsQ.isLoading));
+  if (isLoading) return <DashboardSkeleton />;
+
+  const isError = !demo && (profileQ.isError || mealsQ.isError);
+  if (isError) {
+    const error = profileQ.error || mealsQ.error;
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4 text-center">
+        <AlertTriangle className="h-12 w-12 text-destructive animate-bounce" />
+        <h2 className="mt-4 font-display text-xl font-semibold">Couldn't load dashboard data</h2>
+        <p className="mt-2 text-sm text-muted-foreground max-w-md">
+          {error instanceof Error ? error.message : "A connection or authentication error occurred. Please verify your connection."}
+        </p>
+        <Button
+          onClick={() => {
+            profileQ.refetch();
+            mealsQ.refetch();
+          }}
+          className="mt-6 shadow-warm"
+        >
+          <RefreshCw className="mr-2 h-4 w-4" /> Try again
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-warm-gradient">
@@ -421,7 +500,7 @@ function Dashboard() {
                 <li key={m.id} className="relative">
                   <NutritionLabel
                     title={m.name}
-                    subtitle={`${capitalize(m.meal_type)} · ${new Date(m.logged_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}${m.source !== "manual" ? ` · ${m.source}` : ""}`}
+                    subtitle={`${capitalize(m.meal_type)} · ${m.logged_at ? new Date(m.logged_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : ""}${m.source && m.source !== "manual" ? ` · ${m.source}` : ""}`}
                     nutrition={{
                       calories: m.calories ?? 0,
                       protein_g: m.protein_g ?? 0,

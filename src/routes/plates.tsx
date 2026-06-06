@@ -1,7 +1,7 @@
 import { createFileRoute, Link, redirect, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import {
   Camera,
   Sprout,
@@ -15,6 +15,8 @@ import {
   Flame,
   Heart,
   Leaf,
+  AlertTriangle,
+  RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,6 +32,44 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import nanumoniAvatar from "@/assets/nanumoni-avatar.jpg";
+import { isDemoSession, getDemoMeals } from "@/lib/demo-session";
+
+function PlatesSkeleton() {
+  return (
+    <div className="min-h-screen bg-warm-gradient">
+      <header className="glass-nav h-[60px]" />
+      <main className="mx-auto max-w-6xl space-y-6 px-5 py-6">
+        <div className="h-24 w-full animate-pulse rounded-3xl bg-secondary/60" />
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="aspect-square animate-pulse rounded-2xl bg-secondary/60" />
+          ))}
+        </div>
+      </main>
+    </div>
+  );
+}
+
+function PlatesErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
+  console.error("[Plates Route Error]:", error);
+  return (
+    <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4 text-center">
+      <AlertTriangle className="h-12 w-12 text-destructive animate-bounce" />
+      <h1 className="mt-4 font-display text-xl font-semibold">Plate history encountered a problem</h1>
+      <p className="mt-2 text-sm text-muted-foreground max-w-md">
+        {error instanceof Error ? error.message : "Something went wrong while displaying your plates."}
+      </p>
+      <div className="mt-6 flex gap-2">
+        <Button onClick={() => reset()} className="shadow-warm">
+          <RefreshCw className="mr-2 h-4 w-4" /> Try again
+        </Button>
+        <a href="/">
+          <Button variant="outline">Go back home</Button>
+        </a>
+      </div>
+    </div>
+  );
+}
 
 export const Route = createFileRoute("/plates")({
   head: () => ({
@@ -48,11 +88,21 @@ export const Route = createFileRoute("/plates")({
     ],
   }),
   beforeLoad: async () => {
-    const { data, error } = await supabase.auth.getUser();
-    if (error || !data.user) {
+    if (typeof window === "undefined") return;
+    if (isDemoSession()) return;
+    try {
+      const { data, error } = await supabase.auth.getSession();
+      if (error || !data?.session) {
+        throw redirect({ to: "/login" });
+      }
+    } catch (err) {
+      if (err && typeof err === "object" && "to" in err) throw err;
+      console.error("[auth] Session check failed on plates load, redirecting:", err);
       throw redirect({ to: "/login" });
     }
   },
+  pendingComponent: PlatesSkeleton,
+  errorComponent: PlatesErrorComponent,
   component: PlatesPage,
 });
 
@@ -86,12 +136,30 @@ function PlatesPage() {
   const del = useServerFn(deleteMeal);
   const [selected, setSelected] = useState<MealLog | null>(null);
 
-  const q = useQuery({ queryKey: ["plate-history"], queryFn: () => list() });
-  const plates = (q.data ?? []) as MealLog[];
+  const demo = isDemoSession();
+  const [guestMeals, setGuestMeals] = useState<MealLog[]>([]);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    if (isDemoSession()) {
+      setGuestMeals(getDemoMeals());
+    }
+  }, []);
+
+  const q = useQuery({
+    queryKey: ["plate-history"],
+    queryFn: () => list(),
+    enabled: !demo && mounted,
+  });
+
+  const guestPlates = guestMeals.filter((m) => m && m.source === "photo");
+  const plates = demo ? guestPlates : ((q.data ?? []) as MealLog[]);
 
   const grouped = useMemo(() => {
     const map = new Map<string, MealLog[]>();
     for (const p of plates) {
+      if (!p || !p.logged_at) continue;
       const key = formatDate(p.logged_at);
       const arr = map.get(key) ?? [];
       arr.push(p);
@@ -134,6 +202,27 @@ function PlatesPage() {
   async function signOut() {
     await supabase.auth.signOut();
     router.invalidate();
+  }
+
+  // ─── Loading state ─────────────────────────────────────────────────────────
+  const isLoading = !mounted || (!demo && q.isLoading);
+  if (isLoading) return <PlatesSkeleton />;
+
+  const isError = !demo && q.isError;
+  if (isError) {
+    const error = q.error;
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4 text-center">
+        <AlertTriangle className="h-12 w-12 text-destructive animate-bounce" />
+        <h2 className="mt-4 font-display text-xl font-semibold">Couldn't load plate history</h2>
+        <p className="mt-2 text-sm text-muted-foreground max-w-md">
+          {error instanceof Error ? error.message : "A connection error occurred. Please verify your connection."}
+        </p>
+        <Button onClick={() => q.refetch()} className="mt-6 shadow-warm">
+          <RefreshCw className="mr-2 h-4 w-4" /> Try again
+        </Button>
+      </div>
+    );
   }
 
   return (
@@ -214,7 +303,7 @@ function PlatesPage() {
           />
         </section>
 
-        {q.isLoading && (
+        {isLoading && (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
             {Array.from({ length: 8 }).map((_, i) => (
               <div

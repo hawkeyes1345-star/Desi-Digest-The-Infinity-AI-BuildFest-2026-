@@ -180,8 +180,11 @@ export type EdamamImageFoodResult = {
 const EDAMAM_IMAGE_MAX_BYTES = 4_000_000;
 const EDAMAM_FRIENDLY_UNAVAILABLE = "Image food detection is temporarily unavailable. You can type the food name and I will search the nutrition database.";
 
-function isDevelopment() {
-  return process.env.NODE_ENV !== "production";
+function getFriendlyEdamamMessage(code: string, statusCode?: number): string {
+  if (statusCode === 429) return "Image detection is temporarily rate-limited. Please try again later, type the meal name, or use a demo sample.";
+  if (statusCode === 401 || statusCode === 403 || code === "EDAMAM_VISION_ACCESS_DENIED") return "Image detection is not available for this API plan. You can still type the meal name manually.";
+  if (code === "EDAMAM_ENV_MISSING") return "Image detection is not configured yet. You can still type the meal name manually.";
+  return "Image food detection is temporarily unavailable. You can still type the meal name manually or use a demo sample.";
 }
 
 function edamamError(input: {
@@ -191,22 +194,42 @@ function edamamError(input: {
   debugMessage?: string;
   visionAccess?: EdamamImageFoodResult["visionAccess"];
 }): EdamamImageFoodResult {
-  const debugMessage = input.debugMessage || input.message;
-  console.error("[edamam-image-food]", {
-    code: input.code,
-    statusCode: input.statusCode,
-    message: debugMessage,
-    visionAccess: input.visionAccess || "unknown",
-  });
+  if (input.statusCode === 429) {
+    console.info("[image-analysis] external provider limited; using vision estimate");
+  } else if (input.statusCode === 401 || input.statusCode === 403 || input.code === "EDAMAM_VISION_ACCESS_DENIED") {
+    console.info("[image-analysis] external provider limited; using vision estimate");
+  } else if (input.code === "EDAMAM_FETCH_FAILED") {
+    console.info("[image-analysis] external provider limited; using vision estimate");
+  } else {
+    if (process.env.DEBUG_ANALYSIS === "true") {
+      const rawMsg = input.debugMessage || input.message;
+      const cleanMsg = rawMsg.includes("<html") || rawMsg.includes("<!DOCTYPE")
+        ? "HTML error response"
+        : rawMsg.slice(0, 150);
+      console.error(`[edamam-image-food] ${input.code} error: ${cleanMsg}; using vision fallback`);
+    }
+  }
+
+  if (process.env.DEBUG_ANALYSIS === "true" && process.env.DEBUG === "true") {
+    console.error("[edamam-image-food-debug-details]", {
+      code: input.code,
+      statusCode: input.statusCode,
+      message: input.message,
+      debugMessage: input.debugMessage?.slice(0, 500),
+      visionAccess: input.visionAccess || "unknown",
+    });
+  }
+
+  const friendly = getFriendlyEdamamMessage(input.code, input.statusCode);
   return {
     detected: false,
     foods: [],
     sourceLabel: "Edamam Vision API",
-    publicMessage: EDAMAM_FRIENDLY_UNAVAILABLE,
-    error: isDevelopment() ? input.message : EDAMAM_FRIENDLY_UNAVAILABLE,
+    publicMessage: friendly,
+    error: friendly,
     errorCode: input.code,
     statusCode: input.statusCode,
-    debugMessage: isDevelopment() ? debugMessage : undefined,
+    debugMessage: undefined,
     visionAccess: input.visionAccess || "unknown",
   };
 }

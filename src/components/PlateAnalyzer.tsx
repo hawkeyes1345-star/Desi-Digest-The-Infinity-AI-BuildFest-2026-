@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { analyzePlate, type PlateAnalysis } from "@/lib/analyze-plate.functions";
@@ -49,6 +49,70 @@ type Props = {
   userContext?: string;
 };
 
+const LOADING_STEPS = [
+  "Scanning visible food items...",
+  "Estimating portions...",
+  "Cross-checking nutrition...",
+  "Preparing safety review..."
+];
+
+function ScanningProgress() {
+  const [currentStep, setCurrentStep] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentStep((prev) => (prev + 1) % LOADING_STEPS.length);
+    }, 1500);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div className="space-y-4 rounded-xl border border-primary/20 bg-primary/[0.02] p-5 shadow-sm">
+      <div className="flex items-center gap-3">
+        <Loader2 className="h-5 w-5 animate-spin text-primary" />
+        <span className="font-display text-sm font-bold text-foreground">
+          {LOADING_STEPS[currentStep]}
+        </span>
+      </div>
+      
+      <div className="flex items-center justify-between text-[11px] font-semibold text-muted-foreground px-2 pt-2 border-t border-border/40">
+        <span className={cn(currentStep >= 0 ? "text-sage font-bold" : "text-muted-foreground")}>1. Scan</span>
+        <ArrowRight className="h-3 w-3" />
+        <span className={cn(currentStep >= 1 ? "text-sage font-bold" : "text-muted-foreground")}>2. Identify</span>
+        <ArrowRight className="h-3 w-3" />
+        <span className={cn(currentStep >= 2 ? "text-sage font-bold" : "text-muted-foreground")}>3. Estimate</span>
+        <ArrowRight className="h-3 w-3" />
+        <span className={cn(currentStep >= 3 ? "text-sage font-bold" : "text-muted-foreground")}>4. Review</span>
+      </div>
+    </div>
+  );
+}
+
+function StatusSteps({ status }: { status: "idle" | "complete" }) {
+  const currentStep = status === "idle" ? 1 : 4;
+  return (
+    <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-muted-foreground bg-secondary/30 px-3.5 py-2 rounded-lg border border-border/40">
+      <span className={cn("flex items-center gap-1", currentStep >= 1 && "text-sage font-black")}>
+        <span>✓</span> Scan
+      </span>
+      <ArrowRight className="h-3 w-3" />
+      <span className={cn("flex items-center gap-1", currentStep >= 2 ? "text-sage font-black" : "text-muted-foreground/60")}>
+        <span>✓</span> Identify
+      </span>
+      <ArrowRight className="h-3 w-3" />
+      <span className={cn("flex items-center gap-1", currentStep >= 3 ? "text-sage font-black" : "text-muted-foreground/60")}>
+        <span>✓</span> Estimate
+      </span>
+      <ArrowRight className="h-3 w-3" />
+      <span className={cn("flex items-center gap-1", currentStep >= 4 ? "text-sage font-black" : "text-muted-foreground/60")}>
+        <span>✓</span> Review
+      </span>
+    </div>
+  );
+}
+
+
+const analysisCache = new Map<string, PlateAnalysis>();
 
 export function PlateAnalyzer({ trigger, userContext }: Props) {
   const qc = useQueryClient();
@@ -61,10 +125,20 @@ export function PlateAnalyzer({ trigger, userContext }: Props) {
   const log = useServerFn(logMeal);
 
   const mutation = useMutation({
-    mutationFn: async (dataUrl: string) => {
-      const payload = parseImageDataUrl(dataUrl);
-      if (!payload) throw new Error("Image upload failed. Please reupload the photo.");
-      return analyze({ data: { ...payload, userContext } });
+    mutationFn: async (payload: { dataUrl?: string; typedMeal?: string; demoSample?: string }) => {
+      if (payload.dataUrl) {
+        if (analysisCache.has(payload.dataUrl)) return analysisCache.get(payload.dataUrl)!;
+        const parsed = parseImageDataUrl(payload.dataUrl);
+        if (!parsed) throw new Error("Image upload failed. Please reupload the photo.");
+        const res = await analyze({ data: { ...parsed, userContext } });
+        if (res.detected && !res.detectionUnavailable && !res.blurry) {
+          analysisCache.set(payload.dataUrl, res);
+        }
+        return res;
+      }
+      if (payload.typedMeal) return analyze({ data: { typedMeal: payload.typedMeal, userContext } });
+      if (payload.demoSample) return analyze({ data: { demoSample: payload.demoSample, userContext } });
+      throw new Error("No input provided");
     },
     onSuccess: (res) => setAnalysis(res),
     onError: (e) => toast.error(getPlateAnalysisErrorMessage(e)),
@@ -128,7 +202,7 @@ export function PlateAnalyzer({ trigger, userContext }: Props) {
       const dataUrl = await fileToDownscaledDataUrl(file, mimeType);
       setImageDataUrl(dataUrl);
       setAnalysis(null);
-      mutation.mutate(dataUrl);
+      mutation.mutate({ dataUrl });
     } catch {
       toast.error("Image upload failed. Please reupload the photo.");
     }
@@ -136,6 +210,23 @@ export function PlateAnalyzer({ trigger, userContext }: Props) {
 
   function getPlateAnalysisErrorMessage(error: unknown) {
     const message = error instanceof Error ? error.message : String(error || "");
+    const lower = message.toLowerCase();
+    
+    if (
+      lower.includes("quota") ||
+      lower.includes("exhausted") ||
+      lower.includes("retry") ||
+      lower.includes("gemini") ||
+      lower.includes("edamam") ||
+      lower.includes("limit") ||
+      lower.includes("provider") ||
+      lower.includes("model") ||
+      lower.includes("429") ||
+      lower.includes("api") ||
+      lower.includes("resource_exhausted")
+    ) {
+      return "Nutrition scan is temporarily busy. You can still type the meal name or use a demo sample.";
+    }
     if (/Unsupported image MIME type/i.test(message)) {
       return "Please upload a PNG, JPG, JPEG, or WEBP image.";
     }
@@ -144,6 +235,9 @@ export function PlateAnalyzer({ trigger, userContext }: Props) {
     }
     if (/couldn't identify food|no food/i.test(message)) {
       return "I couldn't identify food in this image. Try a clearer food photo.";
+    }
+    if (/(<html|HTTP|Tomcat|Endpoint|ECONNREFUSED|timeout|JSON)/i.test(message)) {
+      return "Service is temporarily unavailable. Please try again later or use the manual entry.";
     }
     return message || "AI analysis failed. Please try again.";
   }
@@ -169,7 +263,7 @@ export function PlateAnalyzer({ trigger, userContext }: Props) {
     if (!imageDataUrl) return;
     setAnalysis(null);
     mutation.reset();
-    mutation.mutate(imageDataUrl);
+    mutation.mutate({ dataUrl: imageDataUrl });
   }
 
   function close(o: boolean) {
@@ -206,10 +300,10 @@ export function PlateAnalyzer({ trigger, userContext }: Props) {
             />
             <div className="min-w-0">
               <DialogTitle className="font-display text-lg">
-                Nanumoni is looking at your plate
+                Nutrition Intelligence Report
               </DialogTitle>
               <DialogDescription className="text-xs">
-                Uses Edamam image food detection + nutrition databases · Not medical advice
+                Clinical-style nutrition estimate based on visible food items, portion cues, and nutrition database cross-checks.
               </DialogDescription>
             </div>
           </div>
@@ -233,6 +327,10 @@ export function PlateAnalyzer({ trigger, userContext }: Props) {
             onChange={(e) => handleFiles(e.target.files)}
           />
 
+          {!mutation.isPending && (
+            <StatusSteps status={analysis ? "complete" : "idle"} />
+          )}
+
           {!imageDataUrl && (
             <div className="rounded-2xl border-2 border-dashed border-border bg-secondary/40 p-6 text-center">
               <ImagePlus className="mx-auto h-10 w-10 text-primary" />
@@ -241,17 +339,17 @@ export function PlateAnalyzer({ trigger, userContext }: Props) {
                 Take a clear, top-down photo of your plate. Better light = better answer.
               </p>
               <div className="mt-5 grid gap-2 sm:grid-cols-2">
-                <Button onClick={() => cameraRef.current?.click()} className="shadow-warm">
+                <Button onClick={() => cameraRef.current?.click()} className="shadow-warm" disabled={mutation.isPending}>
                   <Camera className="h-4 w-4" /> Take photo
                 </Button>
-                <Button variant="outline" onClick={() => fileRef.current?.click()}>
+                <Button variant="outline" onClick={() => fileRef.current?.click()} disabled={mutation.isPending}>
                   <Upload className="h-4 w-4" /> Upload from gallery
                 </Button>
               </div>
             </div>
           )}
 
-          {imageDataUrl && (
+          {imageDataUrl && (!analysis || lowQuality) && (
             <div className="relative overflow-hidden rounded-2xl ring-1 ring-border">
               <img
                 src={imageDataUrl}
@@ -269,17 +367,7 @@ export function PlateAnalyzer({ trigger, userContext }: Props) {
           )}
 
           {mutation.isPending && (
-            <div className="space-y-2 rounded-xl bg-secondary/60 px-4 py-3">
-              <div className="flex items-center gap-3">
-                <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                <p className="text-sm font-medium">
-                  Analyzing with your latest profile…
-                </p>
-              </div>
-              <p className="pl-8 text-xs text-muted-foreground">
-                Searching food image API, then cross-checking local Desi food data + USDA.
-              </p>
-            </div>
+            <ScanningProgress />
           )}
 
           {/* AI request failed entirely (network, gateway, rate limit, etc.) */}
@@ -290,26 +378,25 @@ export function PlateAnalyzer({ trigger, userContext }: Props) {
               onRetake={retake}
               onReupload={reupload}
               onRetry={imageDataUrl ? retryAnalysis : undefined}
+              onManualSubmit={(typedMeal) => {
+                setAnalysis(null);
+                mutation.reset();
+                mutation.mutate({ typedMeal });
+              }}
+              onDemoSubmit={(demoSample) => {
+                setAnalysis(null);
+                mutation.reset();
+                mutation.mutate({ demoSample });
+              }}
             />
           )}
 
           {/* Analysis returned but image was blurry / nothing recognized */}
           {analysis && lowQuality && !mutation.isPending && (
             <NanumoniTroubleCard
-              title={
-                analysis.detectionUnavailable
-                  ? "Image food detection is temporarily unavailable"
-                  : analysis.blurry
-                    ? "The photo is a little blurry, shona"
-                    : !analysis.detected
-                      ? "Nanumoni can't identify food from this image"
-                      : "Nanumoni is not fully sure about this plate"
-              }
-              message={
-                analysis.nanumoniMessage ||
-                "Image food detection is temporarily unavailable. You can type the food name and I will search the nutrition database."
-              }
-              tips={[
+              title={analysis.detectionUnavailable ? "Analysis did not complete" : "I can't see the food clearly"}
+              message={analysis.nanumoniMessage}
+              tips={analysis.detectionUnavailable ? undefined : [
                 "Hold the phone right over the plate (top-down)",
                 "Move near a window or turn on a bright light",
                 "Wipe the camera lens — phone lenses get smudgy",
@@ -317,11 +404,31 @@ export function PlateAnalyzer({ trigger, userContext }: Props) {
               ]}
               onRetake={retake}
               onReupload={reupload}
+              onManualSubmit={(typedMeal) => {
+                setAnalysis(null);
+                mutation.reset();
+                mutation.mutate({ typedMeal });
+              }}
+              onDemoSubmit={(demoSample) => {
+                setAnalysis(null);
+                mutation.reset();
+                mutation.mutate({ demoSample });
+              }}
             />
           )}
 
           {/* Good analysis */}
-          {analysis && !lowQuality && <PlateAnalysisResult analysis={analysis} />}
+          {analysis && !lowQuality && (
+            <div>
+              <PlateAnalysisResult
+                analysis={analysis}
+                imageDataUrl={imageDataUrl}
+                isRecentCached={Boolean(imageDataUrl && analysisCache.has(imageDataUrl) && analysisCache.get(imageDataUrl) === analysis)}
+                onRetake={retake}
+                onReupload={reupload}
+              />
+            </div>
+          )}
 
           {analysis && imageDataUrl && analysis.detected && !lowQuality && (
             <div className="flex flex-wrap gap-2 pt-1">
@@ -335,12 +442,17 @@ export function PlateAnalyzer({ trigger, userContext }: Props) {
               <Button
                 variant="secondary"
                 onClick={() => {
-                  document
-                    .getElementById("nanumoni-healthier-tips")
-                    ?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  const el = document.getElementById("nanumoni-healthier-tips");
+                  if (el) {
+                    el.scrollIntoView({ behavior: "smooth", block: "center" });
+                    el.classList.add("bg-sage/25", "ring-2", "ring-sage");
+                    setTimeout(() => {
+                      el.classList.remove("bg-sage/25", "ring-2", "ring-sage");
+                    }, 2000);
+                  }
                 }}
               >
-                <Wand2 className="h-4 w-4" /> Make it healthier
+                <Wand2 className="h-4 w-4" /> View healthier plan
               </Button>
               <Button variant="outline" onClick={() => logMut.mutate()} disabled={logMut.isPending}>
                 <Bookmark className="h-4 w-4" /> Save this plate
