@@ -1186,7 +1186,7 @@ export function detectImpossibleFood(message: string): {
   const norm = message.toLowerCase().replace(/[?.!,]/g, " ");
   
   // Animals that do not lay eggs
-  const impossibleAnimals = ["ghora", "ghorar", "goru", "gorur", "chagol", "chagoler", "biral", "biraler", "kukur", "kukurer", "shukor", "shukorer", "ঘোড়া", "ঘোড়ার", "গরু", "গরুর", "ছাগল", "ছাগলের", "বিড়াল", "বিড়ালের", "কুকুর", "কুকুরের"];
+  const impossibleAnimals = ["ghora", "ghorar", "goru", "gorur", "chagol", "chagoler", "biral", "biraler", "kukur", "kukurer", "shukor", "shukorer", "dinosaur", "dinosaurer", "ঘোড়া", "ঘোড়ার", "গরু", "গরুর", "ছাগল", "ছাগলের", "বিড়াল", "বিড়ালের", "কুকুর", "কুকুরের", "ডাইনোসর", "ডাইনোসরের"];
   
   for (const animal of impossibleAnimals) {
     if (
@@ -1204,11 +1204,18 @@ export function detectImpossibleFood(message: string): {
       if (animal === "ঘোড়ার") cleanAnimal = "ঘোড়া";
       if (animal === "গরুর") cleanAnimal = "গরু";
       if (animal === "ছাগলের") cleanAnimal = "ছাগল";
+      if (animal === "dinosaurer") cleanAnimal = "dinosaur";
+      if (animal === "ডাইনোসরের") cleanAnimal = "ডাইনোসর";
 
-      const isBangla = /[\u0980-\u09FF]/.test(animal);
+      const isBangla = /[\u0980-\u09FF]/.test(animal) || /[\u0980-\u09FF]/.test(norm);
       
-      const correctionBanglish = `${cleanAnimal.charAt(0).toUpperCase() + cleanAnimal.slice(1)}r dim bole real food kichu nei — ${cleanAnimal} dim pare na 😄 Apni ki murgir dim ba hasher dim bolte cheyechen?`;
-      const correctionBangla = `${cleanAnimal}র ডিম বলে বাস্তবে কিছু নেই — ${cleanAnimal} ডিম পাড়ে না 😄 আপনি কি মুরগির ডিম বা হাঁসের ডিম বলতে চেয়েছেন?`;
+      let correctionBanglish = `${cleanAnimal.charAt(0).toUpperCase() + cleanAnimal.slice(1)}r dim real food na 😄 Apni ki murgir dim ba hasher dim bolte chachchen? Dim khete chaile boiled egg/omelette better option.`;
+      let correctionBangla = `${cleanAnimal}র ডিম বাস্তবে খাবার নয় 😄 আপনি কি মুরগির ডিম বা হাঁসের ডিম বলতে চাচ্ছেন? ডিম খেতে চাইলে সেদ্ধ ডিম বা অমলেট ভালো অপশন।`;
+
+      if (cleanAnimal === "dinosaur" || cleanAnimal === "ডাইনোসর") {
+        correctionBanglish = "Dinosaur er dim to available na 😄 Real option bolle murgir dim, hasher dim, ba quail egg compare kore dite pari.";
+        correctionBangla = "ডাইনোসরের ডিম তো অ্যাভেইলেবল না 😄 রিয়েল অপশন বললে মুরগির ডিম, হাঁসের ডিম বা কোয়েল ডিমের তুলনা করে দিতে পারি।";
+      }
 
       return {
         detected: true,
