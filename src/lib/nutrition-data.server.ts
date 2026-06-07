@@ -283,10 +283,9 @@ export async function lookupLocalFoodDb(
         };
       }
     } catch (error) {
-      console.error("[nutrition-enrichment] local DB lookup failed", {
-        foodName,
-        message: error instanceof Error ? error.message : String(error),
-      });
+      if (process.env.DEBUG === "true") {
+        console.error("[nutrition-enrichment] local DB lookup error details", error);
+      }
     }
   }
 
@@ -370,12 +369,12 @@ export async function estimateNutritionForFood(
       }
     }
   } catch (error) {
-    console.error("[nutrition-enrichment] USDA lookup failed", {
-      foodName,
-      message: error instanceof Error ? error.message : String(error),
-    });
+    if (process.env.DEBUG === "true") {
+      console.error("[nutrition-enrichment] USDA lookup error details", error);
+    }
   }
 
+  console.warn(`[nutrition-enrichment] lookup unavailable for ${foodName}; using estimate`);
   const fallback = FALLBACK_PER_100G[normalized] ?? FALLBACK_PER_100G.default;
   return {
     name: foodName,
