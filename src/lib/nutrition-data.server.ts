@@ -454,7 +454,7 @@ export async function searchNutritionByQuery(
 export function formatNutritionSourceLabel(source: NutritionSource): string {
   if (source === "local_db") return "Supabase Desi Food Database";
   if (source === "usda") return "USDA FoodData Central";
-  return "Template fallback response";
+  return "Estimated nutrition data";
 }
 
 export function aggregateNutrition(foods: EnrichedFood[]): NutritionTotals {

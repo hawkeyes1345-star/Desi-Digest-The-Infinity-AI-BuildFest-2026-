@@ -69,7 +69,7 @@ function meal(meal_type: MealType, foods: (typeof FOODS)[number][], cost: number
   };
 }
 
-function buildPlan(profile: Profile | null): NutritionPlan {
+export function buildPlan(profile: Profile | null): NutritionPlan {
   const tdee = computeTDEE(profile) || 2000;
   const weightLoss = profile?.goals?.includes("weight_loss");
   const muscle = profile?.goals?.includes("muscle_gain");

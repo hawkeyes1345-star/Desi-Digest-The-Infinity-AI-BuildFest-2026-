@@ -184,25 +184,33 @@ function Dashboard() {
   const del = useServerFn(deleteMeal);
 
   const demo = isDemoSession();
-  const [guestMeals, setGuestMeals] = useState<MealLog[]>([]);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
-    if (isDemoSession()) {
-      setGuestMeals(getDemoMeals());
-    }
   }, []);
 
   const profileQ = useQuery({
     queryKey: ["profile"],
-    queryFn: () => getProfile(),
-    enabled: !demo && mounted,
+    queryFn: () => {
+      if (demo) {
+        if (typeof window !== "undefined") {
+          const stored = localStorage.getItem("deshi-digest-demo-profile");
+          return stored ? JSON.parse(stored) : demoProfile;
+        }
+        return demoProfile;
+      }
+      return getProfile();
+    },
+    enabled: mounted,
   });
   const mealsQ = useQuery({
     queryKey: ["meals"],
-    queryFn: () => listMeals(),
-    enabled: !demo && mounted,
+    queryFn: () => {
+      if (demo) return getDemoMeals();
+      return listMeals();
+    },
+    enabled: mounted,
   });
 
   const delMut = useMutation({
@@ -215,7 +223,16 @@ function Dashboard() {
   });
 
   const altMut = useMutation({
-    mutationFn: (v: boolean) => setAlt({ data: { enabled: v } }),
+    mutationFn: (v: boolean) => {
+      if (demo) {
+        const stored = localStorage.getItem("deshi-digest-demo-profile");
+        const base = stored ? JSON.parse(stored) : demoProfile;
+        const p = { ...base, alternative_mode: v };
+        localStorage.setItem("deshi-digest-demo-profile", JSON.stringify(p));
+        return Promise.resolve({ ok: true });
+      }
+      return setAlt({ data: { enabled: v } });
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["profile"] });
       qc.invalidateQueries({ queryKey: ["plan"] });
@@ -234,7 +251,8 @@ function Dashboard() {
 
   function handleDeleteMeal(id: string) {
     if (demo) {
-      setGuestMeals(deleteDemoMeal(id));
+      deleteDemoMeal(id);
+      qc.invalidateQueries({ queryKey: ["meals"] });
       toast.success("Meal deleted");
       return;
     }
@@ -243,7 +261,7 @@ function Dashboard() {
 
   // ─── Derived data ──────────────────────────────────────────────────────────
   const today = startOfDay(new Date());
-  const meals = demo ? guestMeals : (mealsQ.data ?? []);
+  const meals = mealsQ.data ?? [];
   const todays = Array.isArray(meals) ? meals.filter((m) => m && m.logged_at && new Date(m.logged_at) >= today) : [];
   const totals = accumulateTotals(todays);
 
@@ -290,8 +308,8 @@ function Dashboard() {
   const needsOnboarding = !p || !p.age || !p.goals || !Array.isArray(p.goals) || p.goals.length === 0;
 
   // ─── Loading state ─────────────────────────────────────────────────────────
-  // Show skeleton while initial server data is loading (not for demo mode).
-  const isLoading = !mounted || (!demo && (profileQ.isLoading || mealsQ.isLoading));
+  // Show skeleton while initial server data is loading.
+  const isLoading = !mounted || profileQ.isLoading || mealsQ.isLoading;
   if (isLoading) return <DashboardSkeleton />;
 
   const isError = !demo && (profileQ.isError || mealsQ.isError);
@@ -391,7 +409,9 @@ function Dashboard() {
                 />
                 <LogMealDialog
                   demo={demo}
-                  onDemoMealLogged={(meal) => setGuestMeals((current) => [meal, ...current])}
+                  onDemoMealLogged={() => {
+                    qc.invalidateQueries({ queryKey: ["meals"] });
+                  }}
                 />
                 <Link to="/plan">
                   <Button size="sm" variant="outline">
@@ -490,7 +510,9 @@ function Dashboard() {
                 />
                 <LogMealDialog
                   demo={demo}
-                  onDemoMealLogged={(meal) => setGuestMeals((current) => [meal, ...current])}
+                  onDemoMealLogged={() => {
+                    qc.invalidateQueries({ queryKey: ["meals"] });
+                  }}
                 />
               </div>
             </div>
@@ -500,7 +522,7 @@ function Dashboard() {
                 <li key={m.id} className="relative">
                   <NutritionLabel
                     title={m.name}
-                    subtitle={`${capitalize(m.meal_type)} · ${m.logged_at ? new Date(m.logged_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : ""}${m.source && m.source !== "manual" ? ` · ${m.source}` : ""}`}
+                    subtitle={`${capitalize(m.meal_type)} · ${m.logged_at ? new Date(m.logged_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : ""}`}
                     nutrition={{
                       calories: m.calories ?? 0,
                       protein_g: m.protein_g ?? 0,

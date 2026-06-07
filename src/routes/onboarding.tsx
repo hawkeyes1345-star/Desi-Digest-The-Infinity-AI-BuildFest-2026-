@@ -25,9 +25,12 @@ import { ArrowLeft, ArrowRight, Check, Heart, Sparkles, Loader2, X } from "lucid
 import nanumoniAvatar from "@/assets/nanumoni-avatar.jpg";
 import { VideoBackground } from "@/components/VideoBackground";
 
+import { isDemoSession, demoProfile } from "@/lib/demo-session";
+
 export const Route = createFileRoute("/onboarding")({
   beforeLoad: async () => {
     if (typeof window === "undefined") return;
+    if (isDemoSession()) return;
     try {
       const { data, error } = await supabase.auth.getSession();
       if (error || !data?.session) {
@@ -117,10 +120,22 @@ function OnboardingPage() {
   });
   const [allergyInput, setAllergyInput] = useState("");
 
+  const demo = isDemoSession();
+
   // Pre-fill from existing profile
   useEffect(() => {
     (async () => {
-      const p = await get();
+      let p;
+      if (demo) {
+        if (typeof window !== "undefined") {
+          const stored = localStorage.getItem("deshi-digest-demo-profile");
+          p = stored ? JSON.parse(stored) : demoProfile;
+        } else {
+          p = demoProfile;
+        }
+      } else {
+        p = await get();
+      }
       if (p) {
         setForm((f) => ({
           ...f,
@@ -142,31 +157,37 @@ function OnboardingPage() {
         }));
       }
     })();
-  }, [get]);
+  }, [get, demo]);
 
   const finish = useMutation({
-    mutationFn: () =>
-      save({
-        data: {
-          full_name: form.full_name || null,
-          display_name: form.display_name || form.full_name || null,
-          age: form.age ? Number(form.age) : null,
-          sex: form.sex || null,
-          height_cm: form.height_cm ? Number(form.height_cm) : null,
-          weight_kg: form.weight_kg ? Number(form.weight_kg) : null,
-          activity_level: form.activity_level || null,
-          dietary_preference: form.dietary_preference || null,
-          health_conditions: form.health_conditions,
-          goals: form.goals,
-          budget_bdt: form.budget_bdt ? Number(form.budget_bdt) : null,
-          budget_period: form.budget_period,
-          location: form.location || null,
-          allergies: form.allergies,
-          notes: form.notes || null,
-          alternative_mode: false,
-          mark_onboarded: true,
-        },
-      }),
+    mutationFn: () => {
+      const data = {
+        full_name: form.full_name || null,
+        display_name: form.display_name || form.full_name || null,
+        age: form.age ? Number(form.age) : null,
+        sex: form.sex || null,
+        height_cm: form.height_cm ? Number(form.height_cm) : null,
+        weight_kg: form.weight_kg ? Number(form.weight_kg) : null,
+        activity_level: form.activity_level || null,
+        dietary_preference: form.dietary_preference || null,
+        health_conditions: form.health_conditions,
+        goals: form.goals,
+        budget_bdt: form.budget_bdt ? Number(form.budget_bdt) : null,
+        budget_period: form.budget_period,
+        location: form.location || null,
+        allergies: form.allergies,
+        notes: form.notes || null,
+        alternative_mode: false,
+        onboarded_at: new Date().toISOString(),
+      };
+      if (demo) {
+        if (typeof window !== "undefined") {
+          localStorage.setItem("deshi-digest-demo-profile", JSON.stringify(data));
+        }
+        return Promise.resolve({ ...data, user_id: "demo-user" } as any);
+      }
+      return save({ data: { ...data, mark_onboarded: true } });
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["profile"] });
       toast.success(`Nanumoni knows you now, ${form.full_name || "my dear"} ❤️`);
