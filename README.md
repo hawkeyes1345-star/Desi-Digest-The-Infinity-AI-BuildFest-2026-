@@ -104,6 +104,31 @@ External API integrations:
 
 Only `VITE_` variables should be treated as browser-safe. Backend secrets such as service role keys, Gemini keys, WHO ICD credentials, and Edamam keys must remain server-side.
 
+### Vercel Deployment Checklist
+When deploying the app to Vercel (or any other hosting environment), configure the following environment variables in your Vercel dashboard:
+
+#### Required Public Variables (Browser-Safe):
+- `VITE_SUPABASE_URL`: Your Supabase project URL.
+- `VITE_SUPABASE_PUBLISHABLE_KEY`: Your Supabase project anon key.
+- `VITE_SUPABASE_PROJECT_ID`: Your Supabase project ID.
+
+#### Required Private Variables (Server-Only Secrets):
+- `SUPABASE_URL`: Same as VITE_SUPABASE_URL.
+- `SUPABASE_PUBLISHABLE_KEY`: Same as VITE_SUPABASE_PUBLISHABLE_KEY.
+- `SUPABASE_SERVICE_ROLE_KEY`: Your Supabase service role key (bypasses RLS).
+- `GOOGLE_GENERATIVE_AI_API_KEY` (or `GEMINI_API_KEY`): Key for Nanumoni chat/insights.
+- `OPENROUTER_API_KEY`: API key for the OpenRouter backup vision fallback.
+- `EDAMAM_APP_ID` & `EDAMAM_APP_KEY`: Application credentials for Edamam image classification.
+
+#### Optional Private Variables (Fallback Defaults Exist):
+- `DATA_GOV_API_KEY`: Optional key for USDA FoodData Central / openFDA queries.
+- `WHO_ICD_CLIENT_ID` & `WHO_ICD_CLIENT_SECRET`: Client credentials for WHO ICD database lookups.
+
+> [!IMPORTANT]
+> Do NOT prefix server-only keys (like Gemini, OpenRouter, Edamam, or Supabase service roles) with `VITE_`.
+> Always trigger a redeployment in Vercel after updating your environment variables to load them into serverless functions.
+
+
 ## Available Scripts
 
 ```bash

@@ -2,6 +2,12 @@
 import { searchNutritionByQuery } from "@/lib/nutrition-data.server";
 import type { NutritionSearchResult } from "@/lib/nutrition-data.server";
 import type { ConditionLookupResult, MedicineLookupResult, OpenFdaLookupResult } from "@/lib/api-response-templates.server";
+import {
+  getEdamamCredentials,
+  getWhoIcdCredentials,
+  getDataGovApiKey,
+  getExternalApiUrls,
+} from "@/lib/env.server";
 
 export type ApiErrorResult = { error: string };
 
@@ -25,7 +31,8 @@ export async function lookupNutrition(query: string, supabase?: SupabaseLike): P
 }
 
 export async function lookupRxNorm(name: string): Promise<MedicineLookupResult> {
-  const baseUrl = cleanBaseUrl(process.env.RXNORM_BASE_URL, "https://rxnav.nlm.nih.gov/REST");
+  const { rxNormBaseUrl } = getExternalApiUrls();
+  const baseUrl = cleanBaseUrl(rxNormBaseUrl, "https://rxnav.nlm.nih.gov/REST");
   const url = new URL(baseUrl + "/rxcui.json");
   url.searchParams.set("name", name);
   url.searchParams.set("search", "2");
@@ -66,8 +73,9 @@ export async function lookupRxNorm(name: string): Promise<MedicineLookupResult> 
 }
 
 export async function lookupOpenFda(drug: string): Promise<OpenFdaLookupResult> {
-  const baseUrl = cleanBaseUrl(process.env.OPENFDA_BASE_URL, "https://api.fda.gov");
-  const apiKey = process.env.DATA_GOV_API_KEY?.trim();
+  const { openFdaBaseUrl } = getExternalApiUrls();
+  const baseUrl = cleanBaseUrl(openFdaBaseUrl, "https://api.fda.gov");
+  const apiKey = getDataGovApiKey();
   const url = new URL(baseUrl + "/drug/label.json");
   const safeDrug = drug.replace(/"/g, "");
   url.searchParams.set("search", 'openfda.brand_name:"' + safeDrug + '" OR openfda.generic_name:"' + safeDrug + '"');
@@ -109,10 +117,7 @@ let whoToken: { accessToken: string; expiresAt: number } | null = null;
 async function getWhoToken() {
   const now = Date.now();
   if (whoToken && whoToken.expiresAt - 60_000 > now) return whoToken.accessToken;
-  const clientId = process.env.WHO_ICD_CLIENT_ID?.trim();
-  const clientSecret = process.env.WHO_ICD_CLIENT_SECRET?.trim();
-  const tokenUrl = process.env.WHO_ICD_TOKEN_URL?.trim() || "https://icdaccessmanagement.who.int/connect/token";
-  if (!clientId || !clientSecret) throw new Error("WHO ICD credentials are missing");
+  const { clientId, clientSecret, tokenUrl } = getWhoIcdCredentials();
   const body = new URLSearchParams({ client_id: clientId, client_secret: clientSecret, scope: "icdapi_access", grant_type: "client_credentials" });
   const response = await fetch(tokenUrl, {
     method: "POST",
@@ -130,7 +135,8 @@ async function getWhoToken() {
 export async function lookupWhoIcd(query: string): Promise<ConditionLookupResult> {
   try {
     const token = await getWhoToken();
-    const baseUrl = cleanBaseUrl(process.env.WHO_ICD_BASE_URL, "https://id.who.int/icd");
+    const { baseUrl: rawBaseUrl } = getWhoIcdCredentials();
+    const baseUrl = cleanBaseUrl(rawBaseUrl, "https://id.who.int/icd");
     const url = new URL(baseUrl + "/entity/search");
     url.searchParams.set("q", query);
     url.searchParams.set("flatResults", "true");
@@ -274,12 +280,16 @@ function foodsFromEdamamVision(json: any): EdamamImageFoodResult["foods"] {
 
 export async function lookupEdamamImageFood(imageDataUrl: string): Promise<EdamamImageFoodResult> {
   // Server-only credentials. Never use VITE_EDAMAM_* here because those would expose keys to the browser.
-  const appId = process.env.EDAMAM_APP_ID?.trim();
-  const appKey = process.env.EDAMAM_APP_KEY?.trim();
-  if (!appId || !appKey) {
+  let appId = "";
+  let appKey = "";
+  try {
+    const creds = getEdamamCredentials();
+    appId = creds.appId;
+    appKey = creds.appKey;
+  } catch (err) {
     return edamamError({
       code: "EDAMAM_ENV_MISSING",
-      message: "Missing EDAMAM_APP_ID or EDAMAM_APP_KEY on the server",
+      message: err instanceof Error ? err.message : "Missing EDAMAM_APP_ID or EDAMAM_APP_KEY on the server",
       visionAccess: "unknown",
     });
   }

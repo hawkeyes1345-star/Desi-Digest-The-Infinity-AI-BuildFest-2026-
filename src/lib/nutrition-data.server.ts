@@ -1,4 +1,5 @@
 import { FOODS, type FoodNutrition, type FoodSeed } from "@/lib/foods-dataset";
+import { getDataGovApiKey, getExternalApiUrls } from "@/lib/env.server";
 
 export type NutritionSource = "local_db" | "usda" | "fallback";
 
@@ -293,11 +294,11 @@ export async function lookupLocalFoodDb(
 }
 
 export async function searchFoodDataCentral(query: string): Promise<FoodDataCentralSearchFood | null> {
-  const apiKey = process.env.DATA_GOV_API_KEY?.trim();
+  const apiKey = getDataGovApiKey();
   if (!apiKey) return null;
 
-  const baseUrl = process.env.USDA_FDC_BASE_URL?.trim() || "https://api.nal.usda.gov/fdc/v1";
-  const url = new URL(`${baseUrl.replace(/\/$/, "")}/foods/search`);
+  const { usdaFdcBaseUrl } = getExternalApiUrls();
+  const url = new URL(`${usdaFdcBaseUrl.replace(/\/$/, "")}/foods/search`);
   url.searchParams.set("api_key", apiKey);
   url.searchParams.set("query", query);
   url.searchParams.set("pageSize", "5");
@@ -311,11 +312,11 @@ export async function searchFoodDataCentral(query: string): Promise<FoodDataCent
 }
 
 export async function getFoodNutrition(fdcId: string | number): Promise<NutritionTotals | null> {
-  const apiKey = process.env.DATA_GOV_API_KEY?.trim();
+  const apiKey = getDataGovApiKey();
   if (!apiKey) return null;
 
-  const baseUrl = process.env.USDA_FDC_BASE_URL?.trim() || "https://api.nal.usda.gov/fdc/v1";
-  const url = new URL(`${baseUrl.replace(/\/$/, "")}/food/${fdcId}`);
+  const { usdaFdcBaseUrl } = getExternalApiUrls();
+  const url = new URL(`${usdaFdcBaseUrl.replace(/\/$/, "")}/food/${fdcId}`);
   url.searchParams.set("api_key", apiKey);
 
   const response = await fetch(url);

@@ -9,6 +9,7 @@ import {
   detectAndMapAiError
 } from "@/lib/gemini-quota.server";
 import { NANUMONI_KNOWLEDGE } from "@/lib/nanumoni-knowledge";
+import { getGeminiApiKey as getEnvGeminiApiKey } from "@/lib/env.server";
 
 export const CHAT_MODEL_NAME = process.env.GEMINI_CHAT_MODEL || "gemini-2.5-flash";
 type AiPhase = "chat" | "explanation";
@@ -19,14 +20,7 @@ export function logAiModelUse(phase: AiPhase, model: AiModelName) {
 }
 
 export function getGeminiApiKey() {
-  const apiKey =
-    process.env.GOOGLE_GENERATIVE_AI_API_KEY?.trim() ||
-    process.env.GEMINI_API_KEY?.trim();
-
-  if (!apiKey) {
-    throw new Error("Missing Gemini API key");
-  }
-  return apiKey;
+  return getEnvGeminiApiKey();
 }
 
 export function createGeminiProvider() {
