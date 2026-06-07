@@ -6,7 +6,7 @@ import { isDemoSession, startDemoSession } from "@/lib/demo-session";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Sprout, UserRound } from "lucide-react";
+import { Sprout, UserRound, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/login")({
@@ -22,10 +22,7 @@ function LoginPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (isDemoSession()) {
-      navigate({ to: "/dashboard" });
-      return;
-    }
+    // removed isDemoSession redirect so demo users can log in
 
     supabase.auth.getSession().then(({ data }) => {
       if (data.session) navigate({ to: "/dashboard" });
@@ -116,9 +113,9 @@ function LoginPage() {
               <span>or</span>
               <span className="h-px flex-1 bg-border" />
             </div>
-            <Button type="button" variant="outline" className="w-full" onClick={continueAsGuest}>
-              <UserRound className="h-4 w-4" />
-              Continue as guest
+            <Button type="button" variant="outline" className="w-full border-primary/20 bg-primary/5 hover:bg-primary/10" onClick={continueAsGuest}>
+              <Sparkles className="h-4 w-4 text-primary animate-pulse" />
+              Try Judge Demo
             </Button>
           </div>
         ) : null}

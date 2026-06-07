@@ -20,9 +20,14 @@ import {
 import { toast } from "sonner";
 import nanumoniAvatar from "@/assets/nanumoni-avatar.jpg";
 
+import { isDemoSession, addDemoMeal, demoProfile } from "@/lib/demo-session";
+import { buildPlan } from "@/lib/recommend.functions";
+import { useEffect } from "react";
+
 export const Route = createFileRoute("/plan")({
   beforeLoad: async () => {
     if (typeof window === "undefined") return;
+    if (isDemoSession()) return;
     try {
       const { data, error } = await supabase.auth.getSession();
       if (error || !data?.session) {
@@ -44,15 +49,60 @@ function PlanPage() {
   const getProfile = useServerFn(getMyProfile);
   const log = useServerFn(logMeal);
 
-  const profileQ = useQuery({ queryKey: ["profile"], queryFn: () => getProfile() });
+  const demo = isDemoSession();
+
+  const profileQ = useQuery({
+    queryKey: ["profile"],
+    queryFn: () => {
+      if (demo) {
+        if (typeof window !== "undefined") {
+          const stored = localStorage.getItem("deshi-digest-demo-profile");
+          return stored ? JSON.parse(stored) : demoProfile;
+        }
+        return demoProfile;
+      }
+      return getProfile();
+    },
+  });
+
   const planMut = useMutation({
-    mutationFn: () => gen(),
+    mutationFn: () => {
+      if (demo) {
+        const p = profileQ.data || demoProfile;
+        const generated = buildPlan(p);
+        generated.reasoning_steps.unshift("Profile used: Tasfiq / Demo User (diabetes friendly, weight loss, student budget)");
+        return Promise.resolve(generated);
+      }
+      return gen();
+    },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Couldn't generate"),
   });
 
+  useEffect(() => {
+    if (demo && !planMut.data && !planMut.isPending) {
+      planMut.mutate();
+    }
+  }, [demo]);
+
   const logMut = useMutation({
-    mutationFn: (m: NutritionPlan["meals"][number]) =>
-      log({
+    mutationFn: (m: NutritionPlan["meals"][number]) => {
+      if (demo) {
+        const logged = addDemoMeal({
+          meal_type: m.meal_type,
+          name: m.name,
+          notes: m.portion,
+          calories: m.nutrition.calories,
+          protein_g: m.nutrition.protein_g,
+          fat_g: m.nutrition.fat_g,
+          carbs_g: m.nutrition.carbs_g,
+          fiber_g: m.nutrition.fiber_g,
+          sugar_g: m.nutrition.sugar_g,
+          sodium_mg: m.nutrition.sodium_mg,
+          source: "recommendation",
+        });
+        return Promise.resolve(logged);
+      }
+      return log({
         data: {
           meal_type: m.meal_type,
           name: m.name,
@@ -66,7 +116,8 @@ function PlanPage() {
           sodium_mg: m.nutrition.sodium_mg,
           source: "recommendation",
         },
-      }),
+      });
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["meals"] });
       toast.success("Added to today's log");

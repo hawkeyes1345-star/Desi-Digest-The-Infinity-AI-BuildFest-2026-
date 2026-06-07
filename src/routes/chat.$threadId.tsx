@@ -1,11 +1,12 @@
 
-import { createFileRoute, useParams } from "@tanstack/react-router";
+import { createFileRoute, useParams, Link } from "@tanstack/react-router";
 import type { UIMessage } from "ai";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { getThreadMessages } from "@/lib/threads.functions";
+import { isDemoSession, getLocalDemoResponse } from "@/lib/demo-session";
 import {
   Conversation,
   ConversationContent,
@@ -23,6 +24,10 @@ import nanumoniAvatar from "@/assets/nanumoni-avatar.jpg";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/chat/$threadId")({
+  beforeLoad: async () => {
+    if (typeof window === "undefined") return;
+    if (isDemoSession()) return;
+  },
   component: ChatThread,
 });
 
@@ -33,26 +38,40 @@ const SUGGESTIONS = [
   "Ramadan iftar ideas that won't spike sugar?",
 ];
 
-type ChatMessage = UIMessage & { sourceLabel?: string };
+type ChatMessage = UIMessage;
 
 function ChatThread() {
   const { threadId } = useParams({ from: "/chat/$threadId" });
   const getMsgs = useServerFn(getThreadMessages);
+  const demo = isDemoSession();
+  
   const initialQ = useQuery({
     queryKey: ["thread-messages", threadId],
     queryFn: () => getMsgs({ data: { threadId } }),
+    enabled: !demo,
   });
 
   const initialMessages = useMemo<ChatMessage[]>(() => {
+    if (demo) {
+      if (typeof window !== "undefined") {
+        try {
+          const stored = localStorage.getItem(`deshi-digest-demo-chat-${threadId}`);
+          return stored ? JSON.parse(stored) : [];
+        } catch {
+          return [];
+        }
+      }
+      return [];
+    }
     if (!initialQ.data) return [];
     return initialQ.data.map((m) => ({
       id: m.id,
       role: m.role as UIMessage["role"],
       parts: m.parts as unknown as UIMessage["parts"],
     }));
-  }, [initialQ.data]);
+  }, [initialQ.data, threadId, demo]);
 
-  if (initialQ.isLoading) {
+  if (!demo && initialQ.isLoading) {
     return (
       <div className="grid flex-1 place-items-center">
         <Shimmer>Loading conversation…</Shimmer>
@@ -74,6 +93,13 @@ function ChatInner({ threadId, initialMessages }: { threadId: string; initialMes
   }, [threadId, status]);
 
   const isBusy = status === "submitted";
+  const demo = isDemoSession();
+  const suggestions = demo ? [
+    "alu na dim konta khabo?",
+    "diabetes thakle biryani khabo?",
+    "student budget e protein ki khabo?",
+    "rice na roti?",
+  ] : SUGGESTIONS;
 
   async function submit(text: string) {
     const trimmed = text.trim();
@@ -85,7 +111,30 @@ function ChatInner({ threadId, initialMessages }: { threadId: string; initialMes
       role: "user",
       parts: [{ type: "text", text: trimmed }],
     };
-    setMessages((current) => [...current, optimistic]);
+    const nextMessages = [...messages, optimistic];
+    setMessages(nextMessages);
+
+    if (demo) {
+      if (typeof window !== "undefined") {
+        localStorage.setItem(`deshi-digest-demo-chat-${threadId}`, JSON.stringify(nextMessages));
+      }
+      setTimeout(() => {
+        const replyText = getLocalDemoResponse(trimmed);
+        const reply: ChatMessage = {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          parts: [{ type: "text", text: replyText }],
+        };
+        const updated = [...nextMessages, reply];
+        setMessages(updated);
+        if (typeof window !== "undefined") {
+          localStorage.setItem(`deshi-digest-demo-chat-${threadId}`, JSON.stringify(updated));
+        }
+        setStatus("ready");
+      }, 800);
+      return;
+    }
+
     try {
       const { data } = await supabase.auth.getSession();
       const token = data.session?.access_token;
@@ -105,7 +154,6 @@ function ChatInner({ threadId, initialMessages }: { threadId: string; initialMes
           id: json.id || crypto.randomUUID(),
           role: "assistant",
           parts: json.parts || [{ type: "text", text: json.text || "" }],
-          sourceLabel: json.sourceLabel,
         },
       ]);
     } catch (error) {
@@ -125,7 +173,7 @@ function ChatInner({ threadId, initialMessages }: { threadId: string; initialMes
               <h2 className="mt-4 font-display text-2xl font-semibold">Nanumoni is listening, sona.</h2>
               <p className="mt-1 max-w-md text-sm text-muted-foreground">Ask about nutrition facts, medicine references, conditions, budget meals, or Bangladeshi food.</p>
               <div className="mt-6 grid w-full max-w-xl gap-2 sm:grid-cols-2">
-                {SUGGESTIONS.map((s) => (
+                {suggestions.map((s) => (
                   <button key={s} onClick={() => submit(s)} className="rounded-xl border border-border bg-card px-4 py-3 text-left text-sm leading-snug shadow-soft transition hover:-translate-y-0.5 hover:shadow-warm">
                     {s}
                   </button>
@@ -136,8 +184,13 @@ function ChatInner({ threadId, initialMessages }: { threadId: string; initialMes
 
           {messages.map((m) => {
             const rawText = m.parts.map((p) => (p.type === "text" ? p.text : "")).join("");
-            // Strip debug markers from displayed text
-            const text = rawText.replace(/\n?Template fallback response\.?/gi, "").trim();
+            // Strip any residual technical/debug markers from displayed text
+            const text = rawText
+              .replace(/\n?Template fallback response\.?/gi, "")
+              .replace(/\bSOURCE:\s*[^\n]*/gi, "")
+              .replace(/\b(GEMINI|FALLBACK|TEMPLATE|PROVIDER|MODEL|RAG)\b:?\s*[^\n]*/gi, "")
+              .replace(/\n{3,}/g, "\n\n")
+              .trim();
             if (m.role === "user") {
               return (
                 <Message key={m.id} from="user">
@@ -167,12 +220,31 @@ function ChatInner({ threadId, initialMessages }: { threadId: string; initialMes
         <ConversationScrollButton />
       </Conversation>
 
+      {demo && (
+        <div className="mx-auto w-full max-w-3xl px-4 pb-3 pt-0">
+          <div className="rounded-xl border border-primary/20 bg-sage/10 p-4 shadow-sm animate-in fade-in slide-in-from-bottom-2">
+            <h3 className="font-display font-semibold text-primary">Demo chat is limited</h3>
+            <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
+              Sign in with Gmail to unlock full personalized Nanumoni AI chat, profile-aware advice, and meal-history context.
+            </p>
+            <div className="mt-3">
+              <Link
+                to="/login"
+                className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-[11px] font-bold text-primary-foreground shadow-warm transition-colors hover:bg-primary/90"
+              >
+                Sign in with Gmail
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="glass-soft border-t border-border/60">
         <div className="mx-auto w-full max-w-3xl p-3 sm:p-4">
           <PromptInput onSubmit={() => void submit(input)}>
             <PromptInputTextarea ref={inputRef} value={input} onChange={(e) => setInput(e.target.value)} placeholder="Ask Nanumoni anything… (e.g. rice nutrition, paracetamol, diabetes)" disabled={isBusy} />
             <PromptInputFooter className="justify-between">
-              <p className="px-1 text-[11px] text-muted-foreground">Not medical advice — consult a doctor for health concerns.</p>
+              <p className="px-1 text-[11px] text-muted-foreground">General nutrition guidance — not medical advice.</p>
               <PromptInputSubmit status={isBusy ? "submitted" : "ready"} disabled={isBusy || !input.trim()} />
             </PromptInputFooter>
           </PromptInput>

@@ -7,11 +7,12 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { AppearanceProvider } from "@/lib/appearance";
 import { OnboardingGate } from "@/components/OnboardingGate";
+import { isDemoSession, endDemoSession } from "@/lib/demo-session";
 
 import appCss from "../styles.css?url";
 
@@ -106,17 +107,62 @@ function RootShell({ children }: { children: React.ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const router = useRouter();
+  const [session, setSession] = useState<any>(null);
+
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session);
+      if (data.session && isDemoSession()) endDemoSession();
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      if (session && isDemoSession()) endDemoSession();
       router.invalidate();
       queryClient.invalidateQueries();
     });
     return () => subscription.unsubscribe();
   }, [router, queryClient]);
+
+  const demo = isDemoSession() && !session;
+
+  const handleExitDemo = () => {
+    endDemoSession();
+    router.invalidate();
+    queryClient.invalidateQueries();
+    window.location.href = "/";
+  };
+
   return (
     <QueryClientProvider client={queryClient}>
       <AppearanceProvider>
         <OnboardingGate />
+        {demo && (
+          <div className="sticky top-0 z-50 flex flex-col sm:flex-row items-center justify-between border-b border-primary/20 bg-sage/10 px-4 py-3 text-xs backdrop-blur-md shadow-sm gap-3 sm:gap-4">
+            <div className="flex items-start gap-2">
+              <span className="rounded-full bg-primary/20 px-2 py-0.5 font-bold tracking-wide text-primary whitespace-nowrap mt-0.5">
+                JUDGE DEMO
+              </span>
+              <span className="text-muted-foreground leading-snug">
+                <strong>Dadubhai, you are using Judge Demo Mode. This is sample data only.</strong> Sign in with Gmail to access the full AI features. If sign-in is temporarily limited, you can continue exploring the demo safely.
+              </span>
+            </div>
+            <div className="flex items-center gap-3 shrink-0 self-end sm:self-auto w-full sm:w-auto justify-end">
+              <Link
+                to="/login"
+                className="font-bold text-primary-foreground bg-primary hover:bg-primary/90 px-3 py-1.5 rounded-md transition text-[11px] whitespace-nowrap shadow-warm"
+              >
+                Sign in with Gmail
+              </Link>
+              <button
+                onClick={handleExitDemo}
+                className="font-medium text-muted-foreground hover:text-foreground underline transition whitespace-nowrap"
+              >
+                Exit demo
+              </button>
+            </div>
+          </div>
+        )}
         <Outlet />
         <Toaster />
       </AppearanceProvider>

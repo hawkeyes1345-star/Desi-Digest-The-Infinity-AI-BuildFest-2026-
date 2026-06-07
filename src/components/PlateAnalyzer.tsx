@@ -5,8 +5,9 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { analyzePlate, type PlateAnalysis } from "@/lib/analyze-plate.functions";
 import { ALLOWED_IMAGE_MIME_TYPES, getImageMimeType, parseImageDataUrl } from "@/lib/image-mime";
-import { logMeal } from "@/lib/meals.functions";
 import { NutritionLabel } from "@/components/NutritionLabel";
+import { logMeal } from "@/lib/meals.functions";
+import { isDemoSession, addDemoMeal, getDemoPlateAnalysis } from "@/lib/demo-session";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -119,13 +120,28 @@ export function PlateAnalyzer({ trigger, userContext }: Props) {
   const [open, setOpen] = useState(false);
   const [imageDataUrl, setImageDataUrl] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState<PlateAnalysis | null>(null);
+  const [confirmedItems, setConfirmedItems] = useState(false);
+  const [itemsText, setItemsText] = useState("");
+
+  useEffect(() => {
+    if (analysis && !confirmedItems) {
+      setItemsText(analysis.dishes.map(d => d.name).join(", "));
+    }
+  }, [analysis, confirmedItems]);
   const cameraRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const analyze = useServerFn(analyzePlate);
   const log = useServerFn(logMeal);
+  const demo = isDemoSession();
 
   const mutation = useMutation({
     mutationFn: async (payload: { dataUrl?: string; typedMeal?: string; demoSample?: string }) => {
+      if (demo) {
+        const sample = payload.demoSample || payload.typedMeal || "Rice, dal, fish";
+        const result = getDemoPlateAnalysis(sample);
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        return result;
+      }
       if (payload.dataUrl) {
         if (analysisCache.has(payload.dataUrl)) return analysisCache.get(payload.dataUrl)!;
         const parsed = parseImageDataUrl(payload.dataUrl);
@@ -152,6 +168,26 @@ export function PlateAnalyzer({ trigger, userContext }: Props) {
       const hour = new Date().getHours();
       const meal_type =
         hour < 11 ? "breakfast" : hour < 16 ? "lunch" : hour < 20 ? "dinner" : "snack";
+
+      if (demo) {
+        addDemoMeal({
+          meal_type,
+          name,
+          calories: n?.calories ?? 0,
+          protein_g: n?.protein_g ?? 0,
+          fat_g: n?.fat_g ?? 0,
+          carbs_g: n?.carbs_g ?? 0,
+          fiber_g: n?.fiber_g ?? 0,
+          sodium_mg: n?.sodium_mg ?? 0,
+          health_score: analysis.healthScore,
+          source: "photo",
+          image_url: imageDataUrl || "https://images.unsplash.com/photo-1626132647523-66f5bf380027?auto=format&fit=crop&w=600&q=80",
+          analysis: analysis as any,
+          water_ml: 0,
+          sugar_g: 0,
+        });
+        return Promise.resolve();
+      }
 
       let image_url: string | null = null;
       if (imageDataUrl) {
@@ -245,6 +281,7 @@ export function PlateAnalyzer({ trigger, userContext }: Props) {
   function reset() {
     setImageDataUrl(null);
     setAnalysis(null);
+    setConfirmedItems(false);
     mutation.reset();
   }
 
@@ -417,8 +454,35 @@ export function PlateAnalyzer({ trigger, userContext }: Props) {
             />
           )}
 
+          {/* Confirmation step */}
+          {analysis && !lowQuality && !confirmedItems && (
+            <div className="rounded-2xl border border-border bg-card p-5 space-y-4 shadow-sm animate-in fade-in slide-in-from-bottom-2">
+              <div>
+                <h3 className="font-display text-lg">Confirm what's on your plate</h3>
+                {analysis.dishes.some(d => d.confidence === "low") ? (
+                  <p className="text-xs font-semibold text-spice mt-1">
+                    Vision estimate may be incomplete. Confirm items for better accuracy.
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Verify the detected items below.
+                  </p>
+                )}
+              </div>
+              <input
+                value={itemsText}
+                onChange={(e) => setItemsText(e.target.value)}
+                placeholder="e.g., Rice, dal, chicken curry"
+                className="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              />
+              <Button onClick={() => setConfirmedItems(true)} className="w-full shadow-warm" size="lg">
+                Confirm & View Report
+              </Button>
+            </div>
+          )}
+
           {/* Good analysis */}
-          {analysis && !lowQuality && (
+          {analysis && !lowQuality && confirmedItems && (
             <div>
               <PlateAnalysisResult
                 analysis={analysis}
@@ -430,7 +494,7 @@ export function PlateAnalyzer({ trigger, userContext }: Props) {
             </div>
           )}
 
-          {analysis && imageDataUrl && analysis.detected && !lowQuality && (
+          {analysis && imageDataUrl && analysis.detected && !lowQuality && confirmedItems && (
             <div className="flex flex-wrap gap-2 pt-1">
               <Button
                 onClick={() => logMut.mutate()}

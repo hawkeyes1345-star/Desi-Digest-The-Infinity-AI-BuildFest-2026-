@@ -47,9 +47,18 @@ export function useProfile(opts: { toastOnChange?: boolean } = {}) {
 
   const q = useQuery({
     queryKey: ["profile"],
-    queryFn: () => get(),
+    queryFn: () => {
+      if (demo) {
+        if (typeof window !== "undefined") {
+          const stored = localStorage.getItem("deshi-digest-demo-profile");
+          return stored ? JSON.parse(stored) : demoProfile;
+        }
+        return demoProfile;
+      }
+      return get();
+    },
     staleTime: 30_000,
-    enabled: hasSession === true,
+    enabled: hasSession === true || demo,
   });
 
 
@@ -88,10 +97,10 @@ export function useProfile(opts: { toastOnChange?: boolean } = {}) {
     };
   }, [qc, opts.toastOnChange, demo]);
 
-  const profile: Profile | null = demo ? demoProfile : (q.data ?? null);
+  const profile: Profile | null = demo ? (q.data ?? demoProfile) : (q.data ?? null);
   return {
     profile,
-    isLoading: q.isLoading,
+    isLoading: demo ? false : q.isLoading,
     isComplete: isProfileComplete(profile),
     completeness: profileCompleteness(profile),
     bmi: computeBMI(profile),

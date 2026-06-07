@@ -11,9 +11,12 @@ import { cn } from "@/lib/utils";
 import { PlateAnalyzer } from "@/components/PlateAnalyzer";
 import logoMark from "@/assets/logo-mark.png";
 
+import { isDemoSession, endDemoSession } from "@/lib/demo-session";
+
 export const Route = createFileRoute("/chat")({
   beforeLoad: async () => {
     if (typeof window === "undefined") return;
+    if (isDemoSession()) return;
     try {
       const { data, error } = await supabase.auth.getSession();
       if (error || !data?.session) {
@@ -38,12 +41,51 @@ function ChatLayout() {
   const del = useServerFn(deleteThread);
   const [openMobile, setOpenMobile] = useState(false);
 
-  const threadsQ = useQuery({ queryKey: ["threads"], queryFn: () => list() });
+  const demo = isDemoSession();
+  const [demoThreads, setDemoThreads] = useState<{ id: string; title: string; updated_at: string }[]>([]);
+
+  useEffect(() => {
+    if (demo) {
+      if (typeof window !== "undefined") {
+        const stored = localStorage.getItem("deshi-digest-demo-threads");
+        if (stored) {
+          setDemoThreads(JSON.parse(stored));
+        } else {
+          const initial = [{ id: "demo-thread-1", title: "Nanumoni Chat Guide", updated_at: new Date().toISOString() }];
+          localStorage.setItem("deshi-digest-demo-threads", JSON.stringify(initial));
+          setDemoThreads(initial);
+        }
+      }
+    }
+  }, [demo]);
+
+  const threadsQ = useQuery({
+    queryKey: ["threads"],
+    queryFn: () => list(),
+    enabled: !demo,
+  });
+
+  const threads = demo ? demoThreads : (threadsQ.data ?? []);
 
   const createMut = useMutation({
-    mutationFn: () => create(),
+    mutationFn: () => {
+      if (demo) {
+        const newThread = {
+          id: "demo-thread-" + crypto.randomUUID(),
+          title: "New conversation",
+          updated_at: new Date().toISOString(),
+        };
+        const next = [newThread, ...demoThreads];
+        setDemoThreads(next);
+        if (typeof window !== "undefined") {
+          localStorage.setItem("deshi-digest-demo-threads", JSON.stringify(next));
+        }
+        return Promise.resolve(newThread);
+      }
+      return create();
+    },
     onSuccess: (t) => {
-      qc.invalidateQueries({ queryKey: ["threads"] });
+      if (!demo) qc.invalidateQueries({ queryKey: ["threads"] });
       navigate({ to: "/chat/$threadId", params: { threadId: t.id } });
       setOpenMobile(false);
     },
@@ -51,15 +93,27 @@ function ChatLayout() {
   });
 
   const delMut = useMutation({
-    mutationFn: (id: string) => del({ data: { id } }),
-    onSuccess: (_d, id) => {
-      qc.invalidateQueries({ queryKey: ["threads"] });
-      if (params.threadId === id) navigate({ to: "/chat" });
+    mutationFn: (id: string) => {
+      if (demo) {
+        const next = demoThreads.filter((t) => t.id !== id);
+        setDemoThreads(next);
+        if (typeof window !== "undefined") {
+          localStorage.setItem("deshi-digest-demo-threads", JSON.stringify(next));
+          localStorage.removeItem(`deshi-digest-demo-chat-${id}`);
+        }
+        return Promise.resolve({ id });
+      }
+      return del({ data: { id } }).then(() => ({ id }));
+    },
+    onSuccess: (res) => {
+      if (!demo) qc.invalidateQueries({ queryKey: ["threads"] });
+      if (params.threadId === res.id) navigate({ to: "/chat" });
     },
   });
 
   async function signOut() {
-    await supabase.auth.signOut();
+    if (demo) endDemoSession();
+    else await supabase.auth.signOut();
     navigate({ to: "/" });
   }
 
@@ -100,13 +154,13 @@ function ChatLayout() {
           {threadsQ.isLoading && (
             <p className="px-2 py-4 text-xs text-muted-foreground">Loading…</p>
           )}
-          {threadsQ.data?.length === 0 && (
+          {threads.length === 0 && (
             <p className="px-2 py-4 text-xs text-muted-foreground">
               No conversations yet. Start one!
             </p>
           )}
           <ul className="space-y-1">
-            {threadsQ.data?.map((t) => {
+            {threads.map((t) => {
               const active = params.threadId === t.id;
               return (
                 <li key={t.id} className="group">

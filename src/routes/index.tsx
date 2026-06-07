@@ -1,4 +1,4 @@
-import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Sprout, Heart, Sparkles, ShieldCheck, MessageCircle, Leaf, Camera } from "lucide-react";
 import logoMark from "@/assets/logo-mark.png";
@@ -8,8 +8,9 @@ import { PlateAnalyzer } from "@/components/PlateAnalyzer";
 import { VideoBackground } from "@/components/VideoBackground";
 import { NavbarProfile } from "@/components/NavbarProfile";
 import { supabase } from "@/integrations/supabase/client";
-import { isDemoSession } from "@/lib/demo-session";
+import { isDemoSession, startDemoSession } from "@/lib/demo-session";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
 
 import { Footer } from "@/components/Footer";
@@ -41,6 +42,7 @@ export const Route = createFileRoute("/")({
 
 function Landing() {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (isDemoSession()) {
@@ -55,6 +57,12 @@ function Landing() {
     });
     return () => subscription.unsubscribe();
   }, []);
+
+  function handleStartDemo() {
+    startDemoSession();
+    toast.success("Demo mode started!");
+    navigate({ to: "/dashboard" });
+  }
 
   return (
     <div className="relative min-h-screen">
@@ -111,6 +119,9 @@ function Landing() {
                 <MessageCircle className="h-4 w-4" /> Talk to Nanumoni
               </Button>
             </Link>
+            <Button size="lg" variant="secondary" className="border border-primary/20 bg-primary/10 hover:bg-primary/20 text-foreground" onClick={handleStartDemo}>
+              <Sparkles className="h-4 w-4 text-primary animate-pulse" /> Try Judge Demo
+            </Button>
           </div>
 
           <div className="mt-7 grid max-w-md grid-cols-3 gap-3 text-center">

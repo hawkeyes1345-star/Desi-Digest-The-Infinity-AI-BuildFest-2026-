@@ -17,6 +17,7 @@ import {
   Leaf,
   AlertTriangle,
   RefreshCw,
+  Utensils,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -32,7 +33,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import nanumoniAvatar from "@/assets/nanumoni-avatar.jpg";
-import { isDemoSession, getDemoMeals } from "@/lib/demo-session";
+import { isDemoSession, getDemoMeals, deleteDemoMeal, endDemoSession } from "@/lib/demo-session";
+import { PlateAnalysisResult } from "@/components/plate/PlateAnalysisResult";
 
 function PlatesSkeleton() {
   return (
@@ -137,24 +139,22 @@ function PlatesPage() {
   const [selected, setSelected] = useState<MealLog | null>(null);
 
   const demo = isDemoSession();
-  const [guestMeals, setGuestMeals] = useState<MealLog[]>([]);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
-    if (isDemoSession()) {
-      setGuestMeals(getDemoMeals());
-    }
   }, []);
 
   const q = useQuery({
     queryKey: ["plate-history"],
-    queryFn: () => list(),
-    enabled: !demo && mounted,
+    queryFn: () => {
+      if (demo) return getDemoMeals();
+      return list();
+    },
+    enabled: mounted,
   });
 
-  const guestPlates = guestMeals.filter((m) => m && m.source === "photo");
-  const plates = demo ? guestPlates : ((q.data ?? []) as MealLog[]);
+  const plates = ((q.data ?? []) as MealLog[]).filter((m) => m && m.source === "photo");
 
   const grouped = useMemo(() => {
     const map = new Map<string, MealLog[]>();
@@ -176,6 +176,10 @@ function PlatesPage() {
 
   const deleteMut = useMutation({
     mutationFn: async (p: MealLog) => {
+      if (demo) {
+        deleteDemoMeal(p.id);
+        return;
+      }
       // best-effort photo cleanup
       if (p.image_url) {
         try {
@@ -200,12 +204,17 @@ function PlatesPage() {
   });
 
   async function signOut() {
-    await supabase.auth.signOut();
+    if (demo) {
+      endDemoSession();
+    } else {
+      await supabase.auth.signOut();
+    }
     router.invalidate();
+    window.location.href = "/";
   }
 
   // ─── Loading state ─────────────────────────────────────────────────────────
-  const isLoading = !mounted || (!demo && q.isLoading);
+  const isLoading = !mounted || q.isLoading;
   if (isLoading) return <PlatesSkeleton />;
 
   const isError = !demo && q.isError;
@@ -353,8 +362,9 @@ function PlatesPage() {
                         className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
                       />
                     ) : (
-                      <div className="grid h-full w-full place-items-center text-muted-foreground">
-                        <ImageOff className="h-8 w-8" />
+                      <div className="flex flex-col h-full w-full items-center justify-center bg-secondary/40 text-muted-foreground/50 transition duration-300 group-hover:bg-secondary/60">
+                        <Utensils className="h-8 w-8 mb-2 opacity-50" />
+                        <span className="text-[10px] font-bold tracking-widest uppercase">Demo Meal</span>
                       </div>
                     )}
                     {typeof p.health_score === "number" && (
@@ -393,44 +403,29 @@ function PlatesPage() {
                   {selected.meal_type}
                 </DialogDescription>
               </DialogHeader>
-              <div className="space-y-4 p-5">
-                {selected.image_url && (
-                  <div className="overflow-hidden rounded-2xl ring-1 ring-border">
+              <div className="p-5">
+                {selected.image_url ? (
+                  <div className="overflow-hidden rounded-2xl ring-1 ring-border mb-6">
                     <img
                       src={selected.image_url}
                       alt={selected.name}
                       className="aspect-video w-full object-cover"
                     />
                   </div>
-                )}
-
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                  <Stat icon={<Flame className="h-4 w-4" />} label="kcal" value={Math.round(selected.calories)} />
-                  <Stat label="Protein" value={`${Math.round(selected.protein_g)}g`} />
-                  <Stat label="Carbs" value={`${Math.round(selected.carbs_g)}g`} />
-                  <Stat label="Fat" value={`${Math.round(selected.fat_g)}g`} />
-                </div>
-
-                {typeof selected.health_score === "number" && (
-                  <div
-                    className={cn(
-                      "flex items-center gap-3 rounded-2xl border border-border px-4 py-3",
-                      scoreTone(selected.health_score),
-                    )}
-                  >
-                    <Leaf className="h-5 w-5" />
-                    <p className="text-sm">
-                      <strong className="font-semibold">
-                        {selected.health_score.toFixed(1)}/10
-                      </strong>{" "}
-                      health score from Nanumoni
-                    </p>
+                ) : (
+                  <div className="flex flex-col mb-6 items-center justify-center rounded-2xl ring-1 ring-border bg-secondary/30 aspect-video w-full text-muted-foreground/50">
+                    <Utensils className="h-10 w-10 mb-2 opacity-50" />
+                    <span className="text-xs font-bold tracking-widest uppercase">Demo Meal</span>
                   </div>
                 )}
+                
+                {selected.analysis ? (
+                  <PlateAnalysisResult analysis={selected.analysis as any} />
+                ) : (
+                  <div className="p-10 text-center text-sm text-muted-foreground">No detailed analysis available.</div>
+                )}
 
-                <AnalysisDetails analysis={selected.analysis} />
-
-                <div className="flex flex-wrap justify-end gap-2 pt-2">
+                <div className="mt-8 flex flex-wrap justify-end gap-2 border-t border-border/50 pt-4">
                   <Button
                     variant="outline"
                     onClick={() => deleteMut.mutate(selected)}
