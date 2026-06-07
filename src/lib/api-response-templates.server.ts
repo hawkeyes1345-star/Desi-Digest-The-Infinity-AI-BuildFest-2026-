@@ -173,40 +173,34 @@ export function healthSafeFoodRecommendationTemplate(
   language: "bangla_script" | "banglish" | "english" = "banglish"
 ) {
   const text = message.toLowerCase();
-
+  
   if (language === "bangla_script") {
-    let advice = "বুঝলাম — আপনি স্বাস্থ্যকর এবং সাশ্রয়ী অপশন খুঁজছেন। ";
+    let advice = "স্বাস্থ্যের জন্য সাধারণ গাইডলাইন: ";
     if (text.includes("mangsho") || text.includes("meat")) {
-      advice += "মাংস খেতে চাইলে চামড়া ছাড়া মুরগি বা লোকাল মাছ সবচেয়ে ভালো। হার্ট বা কোলেস্টেরলের সমস্যা থাকলে গরুর/খাসির মাংস কম খাওয়া ভালো। প্রসেসড মাংস এড়িয়ে চলুন।";
+      advice += "মাংসের ক্ষেত্রে চামড়া ছাড়া মুরগি বা লোকাল মাছ ভালো। গরু/খাসি এবং প্রসেসড মাংস এড়িয়ে চলুন।";
     } else {
-      advice += "ডিম, ডাল বা লোকাল মাছ — বাজেটের মধ্যে সবচেয়ে ভালো প্রোটিনের উৎস।";
+      advice += "ডিম, ডাল বা লোকাল মাছ সাশ্রয়ী প্রোটিনের ভালো উৎস।";
     }
-    advice += "\n\nটিপস:\n- কম তেল ও কম লবণে রান্না করুন।\n- খাবারের পরিমাণ নিয়ন্ত্রণ করা স্বাস্থ্যের জন্য জরুরি।\n- প্রসেসড খাবার এড়িয়ে চলুন।";
-    advice += "\n\n_সাধারণ পরামর্শ — কোনো গুরুতর সমস্যা থাকলে ডাক্তার বা ডায়েটিশিয়ানের পরামর্শ নিন।_";
     return advice;
   }
 
   if (language === "english") {
-    let advice = "I understand — you are looking for healthy and budget-friendly options. ";
+    let advice = "General health guideline: ";
     if (text.includes("mangsho") || text.includes("meat")) {
-      advice += "For meat, skinless chicken or local fish is the best choice. Beef or mutton is better restricted, especially if you have heart or cholesterol concerns. Avoid processed meat.";
+      advice += "For meat, prefer skinless chicken or local fish. Avoid beef/mutton and processed meat if cholesterol is a concern.";
     } else {
-      advice += "Eggs, lentils (dal), or local fish are the best protein options on a budget.";
+      advice += "Eggs, lentils (dal), or local fish are great budget-friendly protein sources.";
     }
-    advice += "\n\nTips:\n- Cook with less oil and less salt.\n- Portion control is important for health.\n- Avoid processed foods.";
-    advice += "\n\n_General guidance — consult a doctor or dietitian for serious concerns._";
     return advice;
   }
 
   // Default: Banglish
-  let advice = "Bujhlam — apni healthy and budget-friendly option khujchen. ";
+  let advice = "General health guideline: ";
   if (text.includes("mangsho") || text.includes("meat")) {
-    advice += "Mangsho khete chaile skinless chicken ba local fish best choice. Beef/mutton kom khawa better, especially heart ba cholesterol concern thakle. Processed meat avoid korun.";
+    advice += "Mangsho hole skinless chicken ba local fish better. Beef/mutton ar processed meat avoid kora bhalo.";
   } else {
-    advice += "Dim (egg), dal, ba local fish — budget er moddhe best protein options.";
+    advice += "Dim, dal, ba local fish — budget er moddhe bhalo protein options.";
   }
-  advice += "\n\nTips:\n- Kom tel, kom lobon diye ranna korun.\n- Portion control — diabetes ba heart er jonno important.\n- Processed food avoid korun.";
-  advice += "\n\n_General guidance — doctor er shathe kotha bolun serious concern thakle._";
   return advice;
 }
 
@@ -221,38 +215,29 @@ export function generalChatTemplate(
       return "আসসালামু আলাইকুম! আমি নানুমণি 🌿 দেশি খাবার, পুষ্টি বা স্বাস্থ্য নিয়ে কিছু জানতে চাইলে বলুন — আমি আছি!";
     }
     if (/nanu/i.test(text) && text.length < 10) {
-      return "জি, শুনছি! দেশি খাবার, ডায়েট বা স্বাস্থ্য নিয়ে কোনো পরামর্শ দরকার?";
+      return "জি, শুনছি! দেশি খাবার বা স্বাস্থ্য নিয়ে কোনো পরামর্শ দরকার?";
     }
-    if (/breakfast/i.test(message)) {
-      return "সহজ দেশি সকালের নাস্তার জন্য লাল আটার রুটি বা আধা কাপ ভাতের সাথে ডিম, ডাল বা ছোলা ট্রাই করতে পারেন। ফল থাকলে যুক্ত করুন। ব্যালেন্স: কার্ব + প্রোটিন + ফাইবার।";
-    }
-    return "আমি দেশি খাবারের পুষ্টিগুণ, ওষুধের রেফারেন্স, শারীরিক সমস্যা বা স্বাস্থ্যকর খাবারের আইডিয়া নিয়ে সাহায্য করতে পারি। কী জানতে চান বলুন!";
+    return "আমি দেশি খাবারের পুষ্টিগুণ নিয়ে সাহায্য করতে পারি। কী জানতে চান বলুন!";
   }
 
   if (language === "english") {
     if (/^(hi|hello|hey|salam|assalamu|assalamu alaikum|hola|namaste)$/.test(text)) {
-      return "Hello! I am Nanumoni 🌿 If you want to know about Deshi food, nutrition, or health, just ask — I'm here to help!";
+      return "Hello! I am Nanumoni 🌿 If you want to know about Deshi food or health, just ask — I'm here to help!";
     }
     if (/nanu/i.test(text) && text.length < 10) {
-      return "Yes, I'm here! Do you need any advice on Deshi food, diet, or health?";
+      return "Yes, I'm here! Do you need any advice on Deshi food or health?";
     }
-    if (/breakfast/i.test(message)) {
-      return "For a simple Deshi breakfast, try whole wheat roti or half cup rice with egg, lentils, or chickpeas. Add fruit if available. Balance: carb + protein + fiber.";
-    }
-    return "I can help with Deshi food nutrition, medicine reference, health conditions, or healthy meal ideas. Tell me what you'd like to know!";
+    return "I can help with Deshi food nutrition or healthy meal ideas. Tell me what you'd like to know!";
   }
 
   // Default: Banglish
   if (/^(hi|hello|hey|salam|assalamu|assalamu alaikum|hola|namaste)$/.test(text)) {
-    return "Assalamu Alaikum, shona! Ami Nanumoni 🌿 Deshi khabar, nutrition, ba health niye kichu jante chaile bolun — ami achi!";
+    return "Assalamu Alaikum, shona! Ami Nanumoni 🌿 Deshi khabar ba health niye kichu jante chaile bolun — ami achi!";
   }
   if (/nanu/i.test(text) && text.length < 10) {
-    return "Ji, shunchi! Deshi khabar, diet ba health niye kono poramorsho dorkar?";
+    return "Ji, shunchi! Deshi khabar ba health niye kono poramorsho dorkar?";
   }
-  if (/breakfast/i.test(message)) {
-    return "Simple Deshi breakfast er jonno atta ruti ba half cup bhat er shathe dim, dal, ba chola try korun. Fruit thakle add korun. Balance: carb + protein + fiber.";
-  }
-  return "Ami Deshi khabar, nutrition facts, medicine reference, ba condition-aware meal ideas niye help korte pari. Ki jante chan bolun!";
+  return "Ami Deshi khabar, nutrition facts ba condition-aware meal ideas niye help korte pari. Ki jante chan bolun!";
 }
 
 export function unknownTemplate(language: "bangla_script" | "banglish" | "english" = "banglish") {
