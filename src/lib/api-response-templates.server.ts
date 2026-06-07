@@ -83,7 +83,7 @@ export function medicineTemplate(
   language: "bangla_script" | "banglish" | "english" = "banglish"
 ) {
   if (language === "bangla_script") {
-    if (rx?.error && fda?.error) return "ওষুধের তথ্য এখন পাওয়া যাচ্ছে না। দয়া করে ডাক্তার বা ফার্মাসিস্টের সাথে কথা বলুন।";
+    if (rx?.error && fda?.error) return "ওষুধের তথ্য এখন পাওয়া যাচ্ছে না। General nutrition guidance — not medical advice.";
     const lines = ["ওষুধের তথ্যসূত্র (Medicine reference info):"];
     if (rx && !rx.error) {
       lines.push("নাম: " + (rx.name || rx.query) + "।");
@@ -94,12 +94,12 @@ export function medicineTemplate(
       if (fda.warnings.length) lines.push("সতর্কবার্তা: " + fda.warnings[0]);
       if (fda.dosage.length) lines.push("ডোজের নিয়ম: " + fda.dosage[0]);
     }
-    lines.push("এটি ওষুধের লেবেল থেকে নেওয়া তথ্য — কোনো চিকিৎসা পরামর্শ নয়। ওষুধ পরিবর্তনের আগে ডাক্তারের সাথে পরামর্শ করুন।");
+    lines.push("General nutrition guidance — not medical advice.");
     return lines.join("\n");
   }
 
   if (language === "english") {
-    if (rx?.error && fda?.error) return "Medicine info is currently unavailable. Please talk to a doctor or pharmacist.";
+    if (rx?.error && fda?.error) return "Medicine info is currently unavailable. General nutrition guidance — not medical advice.";
     const lines = ["Medicine reference info:"];
     if (rx && !rx.error) {
       lines.push("Name: " + (rx.name || rx.query) + ".");
@@ -110,12 +110,12 @@ export function medicineTemplate(
       if (fda.warnings.length) lines.push("Warning: " + fda.warnings[0]);
       if (fda.dosage.length) lines.push("Dosage note: " + fda.dosage[0]);
     }
-    lines.push("This is drug label info — not medical advice. Consult a doctor or pharmacist before changing medications.");
+    lines.push("General nutrition guidance — not medical advice.");
     return lines.join("\n");
   }
 
   // Default: Banglish
-  if (rx?.error && fda?.error) return "Medicine info ekhon available na. Pharmacist ba doctor er shathe kotha bolun medicine niye.";
+  if (rx?.error && fda?.error) return "Medicine info ekhon available na. General nutrition guidance — not medical advice.";
   const lines = ["Medicine reference info:"];
   if (rx && !rx.error) {
     lines.push("Name: " + (rx.name || rx.query) + ".");
@@ -126,7 +126,7 @@ export function medicineTemplate(
     if (fda.warnings.length) lines.push("Warning: " + fda.warnings[0]);
     if (fda.dosage.length) lines.push("Dosage note: " + fda.dosage[0]);
   }
-  lines.push("Eta drug label info — medical advice na. Doctor ba pharmacist er shathe kotha bolun medicine change korar age.");
+  lines.push("General nutrition guidance — not medical advice.");
   return lines.join("\n");
 }
 
@@ -136,35 +136,35 @@ export function conditionTemplate(
 ) {
   if (language === "bangla_script") {
     if (result.error || !result.matches.length) {
-      return "এই রোগের তথ্য এখন পাওয়া যাচ্ছে না। সাধারণ পুষ্টিকর খাবার নিয়ে সাহায্য করতে পারি — তবে রোগ নিশ্চিত হতে ডাক্তারের পরামর্শ নিন।";
+      return "এই রোগের তথ্য এখন পাওয়া যাচ্ছে না। General nutrition guidance — not medical advice.";
     }
     const top = result.matches[0];
     return [
       result.query + "-এর স্বাস্থ্য নির্দেশিকা (health reference):",
       top.title + (top.code ? " (" + top.code + ")" : "") + "।",
-      "রোগের ওপর ভিত্তি করে ডায়েট ঠিক করতে ডাক্তারের পরামর্শ মেনে চলুন।",
+      "General nutrition guidance — not medical advice.",
     ].join("\n");
   }
 
   if (language === "english") {
     if (result.error || !result.matches.length) {
-      return "Info for this condition is currently unavailable. I can help with general healthy eating, but please consult a doctor for diagnosis.";
+      return "Info for this condition is currently unavailable. General nutrition guidance — not medical advice.";
     }
     const top = result.matches[0];
     return [
       result.query + " health reference:",
       top.title + (top.code ? " (" + top.code + ")" : "") + ".",
-      "Please follow a doctor's advice for condition-based diets.",
+      "General nutrition guidance — not medical advice.",
     ].join("\n");
   }
 
   // Default: Banglish
-  if (result.error || !result.matches.length) return "Ei condition er info ekhon dhora jacche na. General healthy eating niye help korte pari — but doctor er shathe confirm korun diagnosis er jonno.";
+  if (result.error || !result.matches.length) return "Ei condition er info ekhon dhora jacche na. General nutrition guidance — not medical advice.";
   const top = result.matches[0];
   return [
     result.query + " er health reference:",
     top.title + (top.code ? " (" + top.code + ")" : "") + ".",
-    "Condition-based diet er jonno doctor er poramorsho follow korun.",
+    "General nutrition guidance — not medical advice.",
   ].join("\n");
 }
 
@@ -302,44 +302,60 @@ export function foodComparisonTemplate(
 
     // If it's a comparison group with multiple items
     if (group.length >= 2) {
-      const comparedNames = group.map(f => language === "bangla_script" ? f.banglaName : f.canonicalName).join(" vs ");
+      const worst = ranked[ranked.length - 1];
+      
       if (language === "bangla_script") {
-        text += `**${comparedNames}**-এর মধ্যে **${best.banglaName}** ভালো পছন্দ হবে। কারণ: ${best.healthNotes}\n`;
+        text += `**${best.banglaName}** ভালো পছন্দ হবে।\n\n`;
+        text += `কারণ: ${best.healthNotes}\n\n`;
+        text += `${worst.banglaName} খাওয়া যাবে, তবে ${worst.worsePrep} এড়িয়ে চলা ভালো।\n\n`;
+        text += `পরামর্শ: ${best.servingContext}\n\n`;
+        
         if (showMacros) {
           for (const f of ranked) {
             text += `  - ${f.banglaName}: প্রতি ১০০ গ্রামে প্রায় ${f.nutrients.calories} ক্যালরি, ${f.nutrients.protein}g প্রোটিন, ${f.nutrients.carbs}g কার্বস।\n`;
           }
+          text += "\n";
         }
       } else if (language === "english") {
-        text += `Between **${comparedNames}**, **${best.canonicalName}** is the better choice. Reason: ${best.healthNotes}\n`;
+        text += `**${best.canonicalName}** is the better choice.\n\n`;
+        text += `Reason: ${best.healthNotes}\n\n`;
+        text += `${worst.canonicalName} is okay, but avoid ${worst.worsePrep.toLowerCase()}.\n\n`;
+        text += `Tip: ${best.servingContext}\n\n`;
+        
         if (showMacros) {
           for (const f of ranked) {
             text += `  - ${f.canonicalName}: ~${f.nutrients.calories} kcal, ${f.nutrients.protein}g protein, ${f.nutrients.carbs}g carbs.\n`;
           }
+          text += "\n";
         }
       } else {
-        text += `**${comparedNames}** er moddhe **${best.canonicalName}** bhalo choice hobe. Reason: ${best.healthNotes}\n`;
+        text += `**${best.canonicalName}** bhalo choice hobe.\n\n`;
+        text += `Reason: ${best.healthNotes}\n\n`;
+        text += `${worst.canonicalName} khawa jabe, but ${worst.worsePrep.toLowerCase()} avoid kora bhalo.\n\n`;
+        text += `Tip: ${best.servingContext}\n\n`;
+        
         if (showMacros) {
           for (const f of ranked) {
             text += `  - ${f.canonicalName}: ~${f.nutrients.calories} kcal, ${f.nutrients.protein}g protein, ${f.nutrients.carbs}g carbs.\n`;
           }
+          text += "\n";
         }
       }
     } else {
       // Single item in this group
       const f = group[0];
       if (language === "bangla_script") {
-        text += `**${f.banglaName}** সম্পর্কে: ${f.healthNotes}\n`;
+        text += `**${f.banglaName}** সম্পর্কে:\nকারণ: ${f.healthNotes}\nপরামর্শ: ${f.servingContext}\n\n`;
         if (showMacros) {
           text += `  - প্রতি ১০০ গ্রামে প্রায় ${f.nutrients.calories} ক্যালরি, ${f.nutrients.protein}g প্রোটিন, ${f.nutrients.carbs}g কার্বস।\n`;
         }
       } else if (language === "english") {
-        text += `About **${f.canonicalName}**: ${f.healthNotes}\n`;
+        text += `About **${f.canonicalName}**:\nReason: ${f.healthNotes}\nTip: ${f.servingContext}\n\n`;
         if (showMacros) {
           text += `  - ~${f.nutrients.calories} kcal, ${f.nutrients.protein}g protein, ${f.nutrients.carbs}g carbs.\n`;
         }
       } else {
-        text += `**${f.canonicalName}** somporke: ${f.healthNotes}\n`;
+        text += `**${f.canonicalName}** somporke:\nReason: ${f.healthNotes}\nTip: ${f.servingContext}\n\n`;
         if (showMacros) {
           text += `  - ~${f.nutrients.calories} kcal, ${f.nutrients.protein}g protein, ${f.nutrients.carbs}g carbs.\n`;
         }

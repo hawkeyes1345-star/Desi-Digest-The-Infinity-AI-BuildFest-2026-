@@ -1183,21 +1183,29 @@ export function detectImpossibleFood(message: string): {
   correctionBanglish?: string;
   correctionBangla?: string;
 } | null {
-  const norm = message.toLowerCase().replace(/[?.!,]/g, " ");
+  const norm = message.toLowerCase().replace(/[?.!,]/g, " ").replace(/\s+/g, " ").trim();
   
   // Animals that do not lay eggs
-  const impossibleAnimals = ["ghora", "ghorar", "goru", "gorur", "chagol", "chagoler", "biral", "biraler", "kukur", "kukurer", "shukor", "shukorer", "dinosaur", "dinosaurer", "ঘোড়া", "ঘোড়ার", "গরু", "গরুর", "ছাগল", "ছাগলের", "বিড়াল", "বিড়ালের", "কুকুর", "কুকুরের", "ডাইনোসর", "ডাইনোসরের"];
+  const impossibleAnimals = [
+    "ghora", "ghorar", "goru", "gorur", "chagol", "chagoler", "biral", "biraler", 
+    "kukur", "kukurer", "shukor", "shukorer", "dinosaur", "dinosaurer", "elephant", 
+    "elephanter", "hati", "hatir", "singho", "singhor", "bagh", "bagher", "manush", "manusher",
+    "ঘোড়া", "ঘোড়ার", "গরু", "গরুর", "ছাগল", "ছাগলের", "বিড়াল", "বিড়ালের", "কুকুর", "কুকুরের", "ডাইনোসর", "ডাইনোসরের",
+    "হাতি", "হাতির", "সিংহ", "সিংহের", "বাঘ", "বাঘের"
+  ];
   
+  const hasDimOrEgg = /\b(dim|dmi|dm|dime|dmee|egg|eg|egs|eggs|ডিম|ডমি|ডীমের)\b/i.test(norm);
+
   for (const animal of impossibleAnimals) {
-    if (
-      norm.includes(`${animal} dim`) || 
-      norm.includes(`${animal}r dim`) || 
-      norm.includes(`${animal} er dim`) || 
-      norm.includes(`${animal} egg`) || 
-      norm.includes(`${animal} ডিম`)
-    ) {
-      // Find a clean version of the animal name
-      let cleanAnimal = animal.replace(/r$/, "").replace(/er$/, "");
+    const hasAnimal = norm.includes(animal);
+    if (hasAnimal && hasDimOrEgg) {
+      let cleanAnimal = animal;
+      if (animal.endsWith("er") && animal !== "dinosaur" && animal !== "elephant") {
+        cleanAnimal = animal.slice(0, -2);
+      } else if (animal.endsWith("r") && animal !== "dinosaur" && animal !== "shukor" && !animal.endsWith("saur")) {
+        cleanAnimal = animal.slice(0, -1);
+      }
+      
       if (animal === "ghorar") cleanAnimal = "ghora";
       if (animal === "gorur") cleanAnimal = "goru";
       if (animal === "chagoler") cleanAnimal = "chagol";
@@ -1206,16 +1214,15 @@ export function detectImpossibleFood(message: string): {
       if (animal === "ছাগলের") cleanAnimal = "ছাগল";
       if (animal === "dinosaurer") cleanAnimal = "dinosaur";
       if (animal === "ডাইনোসরের") cleanAnimal = "ডাইনোসর";
+      if (animal === "hatir") cleanAnimal = "hati";
+      if (animal === "singhor") cleanAnimal = "singho";
+      if (animal === "bagher") cleanAnimal = "bagh";
+      if (animal === "manusher") cleanAnimal = "manush";
 
       const isBangla = /[\u0980-\u09FF]/.test(animal) || /[\u0980-\u09FF]/.test(norm);
       
-      let correctionBanglish = `${cleanAnimal.charAt(0).toUpperCase() + cleanAnimal.slice(1)}r dim real food na 😄 Apni ki murgir dim ba hasher dim bolte chachchen? Dim khete chaile boiled egg/omelette better option.`;
-      let correctionBangla = `${cleanAnimal}র ডিম বাস্তবে খাবার নয় 😄 আপনি কি মুরগির ডিম বা হাঁসের ডিম বলতে চাচ্ছেন? ডিম খেতে চাইলে সেদ্ধ ডিম বা অমলেট ভালো অপশন।`;
-
-      if (cleanAnimal === "dinosaur" || cleanAnimal === "ডাইনোসর") {
-        correctionBanglish = "Dinosaur er dim to available na 😄 Real option bolle murgir dim, hasher dim, ba quail egg compare kore dite pari.";
-        correctionBangla = "ডাইনোসরের ডিম তো অ্যাভেইলেবল না 😄 রিয়েল অপশন বললে মুরগির ডিম, হাঁসের ডিম বা কোয়েল ডিমের তুলনা করে দিতে পারি।";
-      }
+      const correctionBanglish = `Mone hocche typo hoyeche. Apni ki murgir dim, hasher dim, na onno kichu bolte chachchen?\n\nGeneral nutrition guidance — not medical advice. Note: Real option bolle murgir dim ba hasher dim e protein thake, ja sheddho ba kom tel e bhaje khele safe.`;
+      const correctionBangla = `মনে হচ্ছে টাইপো হয়েছে। আপনি কি মুরগির ডিম, হাঁসের ডিম, না অন্য কিছু বলতে চাচ্ছেন?\n\nGeneral nutrition guidance — not medical advice. নোট: ডিমের প্রোটিন পেতে চাইলে মুরগির বা হাঁসের ডিম সেদ্ধ অথবা অমলেট করে খেতে পারেন।`;
 
       return {
         detected: true,
@@ -1225,6 +1232,32 @@ export function detectImpossibleFood(message: string): {
         correctionBangla: isBangla ? correctionBangla : undefined
       };
     }
+  }
+
+  // Check general strange/unclear food typos containing "dim" or "egg" next to impossible animals
+  const joinedPatterns = [
+    "ghorardim", "ghorardmi", "ghorardm", "dinosaurerdim", "dinosaurdim", "dinosaurer dmi",
+    "gorurdim", "gorur dmi", "gorurdm", "chagolerdim", "chagoler dmi", "biralerdim", "kukurermdim"
+  ];
+  if (joinedPatterns.some(pat => norm.includes(pat))) {
+    return {
+      detected: true,
+      animal: "ghora",
+      food: "dim",
+      correctionBanglish: `Mone hocche typo hoyeche. Apni ki murgir dim, hasher dim, na onno kichu bolte chachchen?\n\nGeneral nutrition guidance — not medical advice. Note: Real option bolle murgir dim ba hasher dim e protein thake, ja sheddho ba kom tel e bhaje khele safe.`,
+      correctionBangla: `মনে হচ্ছে টাইপো হয়েছে। আপনি কি মুরগির ডিম, হাঁসের ডিম, না অন্য কিছু বলতে চাচ্ছেন?\n\nGeneral nutrition guidance — not medical advice. নোট: ডিমের প্রোটিন পেতে চাইলে মুরগির বা হাঁসের ডিম সেদ্ধ অথবা অমলেট করে খেতে পারেন।`
+    };
+  }
+
+  // Detect general typos of dim/egg (like dmi, dmee, dm, etc.)
+  const hasGeneralTypoOfDim = /\b(dmi|dmee|dm|dime|egs|eg)\b/i.test(norm) || norm.includes("ডমি") || norm.includes("ডীমের");
+  if (hasGeneralTypoOfDim) {
+    return {
+      detected: true,
+      food: "dim",
+      correctionBanglish: `Mone hocche typo hoyeche. Apni ki murgir dim, hasher dim, na onno kichu bolte chachchen?\n\nGeneral nutrition guidance — not medical advice. Note: Real option bolle murgir dim ba hasher dim e protein thake, ja sheddho ba kom tel e bhaje khele safe.`,
+      correctionBangla: `মনে হচ্ছে টাইপো হয়েছে। আপনি কি মুরগির ডিম, হাঁসের ডিম, না অন্য কিছু বলতে চাচ্ছেন?\n\nGeneral nutrition guidance — not medical advice. নোট: ডিমের প্রোটিন পেতে চাইলে মুরগির বা হাঁসের ডিম সেদ্ধ অথবা অমলেট করে খেতে পারেন।`
+    };
   }
 
   return null;

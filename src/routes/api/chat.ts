@@ -332,15 +332,28 @@ export const Route = createFileRoute("/api/chat")({
           fallbackReason = chatResponse.fallbackReason;
         }
 
-        // Post-generation sanitizer
+        // Post-generation sanitizer — strip ALL technical/provider labels
         assistantText = assistantText
           .replace(/\b(Tony vai|Tony bhai|Tony)\b/gi, "Bujhlam")
-          .replace(/\b(Gemini|Template fallback response|API failed)\b/gi, "")
-          .replace(/as an AI|I am a language model|I am an AI/gi, "")
-          .replace(/Source:.*?(\n|$)/gi, "\n")
-          .replace(/Fallback:.*?(\n|$)/gi, "\n")
-          .replace(/Template:.*?(\n|$)/gi, "\n")
-          .replace(/^,\s*/, "")
+          .replace(/\b(Gemini|gemini|ChatGPT|OpenAI|Claude|GPT-?4|GPT-?3\.?5?)\b/gi, "")
+          .replace(/Template fallback response\.?/gi, "")
+          .replace(/\b(API failed|API error|API call|model error)\b/gi, "")
+          .replace(/as an AI|I am a language model|I am an AI|as a language model/gi, "")
+          .replace(/\bSOURCE:\s*[^\n]*/gi, "")
+          .replace(/Source:\s*[^\n]*/gi, "")
+          .replace(/Fallback:\s*[^\n]*/gi, "")
+          .replace(/Template:\s*[^\n]*/gi, "")
+          .replace(/Provider:\s*[^\n]*/gi, "")
+          .replace(/Model:\s*[^\n]*/gi, "")
+          .replace(/\b(template[- ]?fallback|fallback[- ]?response|fallback[- ]?answer|fallback[- ]?mode)\b/gi, "")
+          .replace(/\b(SOURCE|PROVIDER|MODEL|RAG|FALLBACK)\b:\s*\S+/g, "")
+          .replace(/\bealthy\b/g, "healthy")
+          .replace(/\bEalthy\b/g, "Healthy")
+          .replace(/\bproteain\b/g, "protein")
+          .replace(/\bProteain\b/g, "Protein")
+          .replace(/\b(API|model|provider|fallback|template|source|RAG)\b/gi, "")
+          .replace(/^[,\s]+/, "")
+          .replace(/\n{3,}/g, "\n\n")
           .replace(/ {2,}/g, " ")
           .trim();
 
@@ -373,13 +386,19 @@ export const Route = createFileRoute("/api/chat")({
           sourceLabel = "Nanumoni";
         }
 
+        sourceLabel = sourceLabel
+          .replace(/\b(Gemini|fallback|template|API|model|provider|SOURCE|Source)\b/gi, "")
+          .replace(/\s+/g, " ")
+          .trim();
+        if (!sourceLabel) {
+          sourceLabel = "Nanumoni";
+        }
+
         return Response.json({
           id: assistantRow?.id || crypto.randomUUID(),
           role: "assistant",
           parts: assistantParts,
           text: assistantText,
-          intent: built.intent,
-          sourceLabel: sourceLabel,
         });
       },
     },
