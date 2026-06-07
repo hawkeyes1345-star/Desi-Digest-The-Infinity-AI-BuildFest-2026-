@@ -1175,6 +1175,54 @@ function getLevenshteinDistance(a: string, b: string): number {
   return tmp[a.length][b.length];
 }
 
+// Helper for impossible food combinations
+export function detectImpossibleFood(message: string): {
+  detected: boolean;
+  animal?: string;
+  food?: string;
+  correctionBanglish?: string;
+  correctionBangla?: string;
+} | null {
+  const norm = message.toLowerCase().replace(/[?.!,]/g, " ");
+  
+  // Animals that do not lay eggs
+  const impossibleAnimals = ["ghora", "ghorar", "goru", "gorur", "chagol", "chagoler", "biral", "biraler", "kukur", "kukurer", "shukor", "shukorer", "ঘোড়া", "ঘোড়ার", "গরু", "গরুর", "ছাগল", "ছাগলের", "বিড়াল", "বিড়ালের", "কুকুর", "কুকুরের"];
+  
+  for (const animal of impossibleAnimals) {
+    if (
+      norm.includes(`${animal} dim`) || 
+      norm.includes(`${animal}r dim`) || 
+      norm.includes(`${animal} er dim`) || 
+      norm.includes(`${animal} egg`) || 
+      norm.includes(`${animal} ডিম`)
+    ) {
+      // Find a clean version of the animal name
+      let cleanAnimal = animal.replace(/r$/, "").replace(/er$/, "");
+      if (animal === "ghorar") cleanAnimal = "ghora";
+      if (animal === "gorur") cleanAnimal = "goru";
+      if (animal === "chagoler") cleanAnimal = "chagol";
+      if (animal === "ঘোড়ার") cleanAnimal = "ঘোড়া";
+      if (animal === "গরুর") cleanAnimal = "গরু";
+      if (animal === "ছাগলের") cleanAnimal = "ছাগল";
+
+      const isBangla = /[\u0980-\u09FF]/.test(animal);
+      
+      const correctionBanglish = `${cleanAnimal.charAt(0).toUpperCase() + cleanAnimal.slice(1)}r dim bole real food kichu nei — ${cleanAnimal} dim pare na 😄 Apni ki murgir dim ba hasher dim bolte cheyechen?`;
+      const correctionBangla = `${cleanAnimal}র ডিম বলে বাস্তবে কিছু নেই — ${cleanAnimal} ডিম পাড়ে না 😄 আপনি কি মুরগির ডিম বা হাঁসের ডিম বলতে চেয়েছেন?`;
+
+      return {
+        detected: true,
+        animal: cleanAnimal,
+        food: "dim",
+        correctionBanglish,
+        correctionBangla: isBangla ? correctionBangla : undefined
+      };
+    }
+  }
+
+  return null;
+}
+
 // Function to extract food entities
 export function extractFoodEntities(message: string, language?: "bangla_script" | "banglish" | "english"): FoodEntity[] {
   const normalizedMsg = normalizeText(message);
@@ -1190,9 +1238,17 @@ export function extractFoodEntities(message: string, language?: "bangla_script" 
     }
   }
 
+  const impossibleFoodCheck = detectImpossibleFood(message);
+
   // Helper to add entity
   const addEntity = (item: FoodItem, matchedText: string, confidence: number) => {
     if (matchedCanonicalNames.has(item.canonicalName)) return;
+    
+    // Suppress "Dim (Egg)" if impossible food is detected
+    if (impossibleFoodCheck?.detected && impossibleFoodCheck.food === "dim" && item.canonicalName === "Dim (Egg)") {
+      return;
+    }
+
     matchedCanonicalNames.add(item.canonicalName);
     entities.push({
       canonicalName: item.canonicalName,
@@ -1378,7 +1434,11 @@ export function extractFoodEntityOccurrences(message: string, language?: "bangla
     }
   }
 
+  const impossibleFoodCheck = detectImpossibleFood(message);
+
   for (const item of BANGLADESHI_FOODS) {
+    if (impossibleFoodCheck?.detected && impossibleFoodCheck.food === "dim" && item.canonicalName === "Dim (Egg)") continue;
+
     for (const alias of item.aliases) {
       const normalizedAlias = alias.toLowerCase();
       if (!normalizedAlias || normalizedAlias.length < 2) continue;

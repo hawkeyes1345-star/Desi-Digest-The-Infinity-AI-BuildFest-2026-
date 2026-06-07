@@ -137,10 +137,17 @@ export function classifyMessageIntent(message: string): MessageIntent {
 
   if (isLanguageRewriteRequest(message)) return "language_rewrite";
 
+  // Simple cheap greetings or very short unclear messages shouldn't use Gemini
+  if (/^(hi|hello|hey|salam|assalamu|assalamu alaikum|nanu|hola|namaste)$/.test(text)) return "general_chat";
+
+  // Follow-up phrases that need thread context rather than raw lookup
+  const isFollowUp = /^(vat khbo|khabo|eta khabo|ar ki|konta better|tahole eta|tahole|ok|acha|accha|thik ache|ruti khabo|dim khabo)$/i.test(text);
+  if (isFollowUp) return "general_chat";
+
   const entities = extractFoodEntities(message);
   if (entities.length >= 2) {
-    const isComparisonQuery = /\b(konta|kontar|better|best|vs|versus|na|or|ar|tulanay|tulara|compare|comparison|maximum|jekono|choice|choise|prefer|preference|valo|bhalo|pushti|nutrition|calorie|protein)\b/i.test(text) ||
-      /\b(কোনটা|কোনটির|বেশি|ভালো|ভলো|না|আর|এবং|তুলনা|পছন্দ)\b/i.test(text) ||
+    const isComparisonQuery = /\b(konta|kontar|better|best|vs|versus|na|or|ar|tulanay|tulara|compare|comparison|maximum|jekono|choice|choise|prefer|preference|valo|bhalo|pushti|nutrition|calorie|protein|uchit)\b/i.test(text) ||
+      /\b(কোনটা|কোনটির|বেশি|ভালো|ভলো|না|আর|এবং|তুলনা|পছন্দ|উচিত)\b/i.test(text) ||
       text.includes("?") ||
       text.includes(" vs ") ||
       text.includes(" versus ");
@@ -149,15 +156,13 @@ export function classifyMessageIntent(message: string): MessageIntent {
       return "food_comparison";
     }
   } else if (entities.length === 1) {
-    const hasExplicitVs = /\b(vs|versus|naki)\b/i.test(text) || /\b(নাকি|না)\b/i.test(text);
-    const hasComparisonKeyword = /\b(better|best|compare|comparison|tulanay|tula)\b/i.test(text) || /\b(ভালো|বেশি|তুলনা)\b/i.test(text);
+    const hasExplicitVs = /\b(vs|versus|naki|na)\b/i.test(text) || /\b(নাকি|না)\b/i.test(text);
+    const hasComparisonKeyword = /\b(better|best|compare|comparison|tulanay|tula|uchit)\b/i.test(text) || /\b(ভালো|বেশি|তুলনা|উচিত)\b/i.test(text);
     if (hasExplicitVs && hasComparisonKeyword && text.includes("?")) {
       return "food_comparison";
     }
   }
 
-  // Simple cheap greetings or very short unclear messages shouldn't use Gemini
-  if (/^(hi|hello|hey|salam|assalamu|assalamu alaikum|nanu|hola|namaste)$/.test(text)) return "general_chat";
   if (text.length < 3) return "unknown";
 
   if (LOGGED_MEAL_REVIEW_PATTERNS.some((pattern) => pattern.test(text))) return "logged_meal_review";
@@ -170,7 +175,7 @@ export function classifyMessageIntent(message: string): MessageIntent {
   const hasHealthRec = HEALTH_RECOMMENDATION_WORDS.some((word) => text.includes(word));
 
   // "Can I eat X", "Is X safe", "khawa jabe?", etc.
-  const isQuestioningSafety = /\b(jabe|khaw|khawa|good|better|safe|best|should|can|i|eat)\b/i.test(text) && text.includes("?");
+  const isQuestioningSafety = /\b(jabe|khaw|khawa|good|better|safe|best|should|can|i|eat|uchit)\b/i.test(text) && text.includes("?");
 
   if ((hasHealthRec || isQuestioningSafety) && (hasNutrition || hasCondition)) return "health_safe_food_recommendation";
 
@@ -179,7 +184,10 @@ export function classifyMessageIntent(message: string): MessageIntent {
 
   if (MEDICINE_WORDS.some((word) => text.includes(word))) return "medicine";
   if (hasCondition) return "condition";
-  if (hasNutrition) return "nutrition";
+  
+  // If it matches nutrition but has no clear safety/recommendation keywords, usually it's just general info
+  // Treat as general chat to let Gemini handle it naturally with context
+  if (hasNutrition) return "general_chat";
 
   // If it's a real question but didn't match keywords, use general_chat to trigger Gemini
   if (text.length > 8 || text.includes("?")) return "general_chat";

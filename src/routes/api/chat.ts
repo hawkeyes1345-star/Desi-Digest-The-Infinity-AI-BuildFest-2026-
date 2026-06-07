@@ -15,7 +15,7 @@ import {
   foodComparisonTemplate,
 } from "@/lib/api-response-templates.server";
 import { generateChatResponse } from "@/lib/ai-gateway.server";
-import { extractFoodEntities, extractComparisonGroups } from "@/lib/bangladeshi-food-knowledge";
+import { extractFoodEntities, extractComparisonGroups, detectImpossibleFood } from "@/lib/bangladeshi-food-knowledge";
 
 type ChatRequestBody = { message?: unknown; threadId?: string; messages?: unknown; context?: unknown };
 
@@ -285,23 +285,47 @@ export const Route = createFileRoute("/api/chat")({
         const isSimpleGreeting = /^(hi|hello|hey|salam|assalamu|assalamu alaikum|nanu|hola|namaste)$/i.test(message.toLowerCase());
         const isVeryShort = message.length < 3;
         const isRewrite = built.intent === "language_rewrite";
-        const isComparison = built.intent === "food_comparison";
 
         let assistantText: string;
         let usedGemini = false;
         let fallbackReason: string | undefined;
 
-        if ((isSimpleGreeting || isVeryShort || built.skipGemini) && !isRewrite && !isComparison) {
+        const impossibleFood = detectImpossibleFood(message);
+
+        if (impossibleFood?.detected) {
+          const isBangla = /[\u0980-\u09FF]/.test(message) || getMessageLanguage(message) === "bangla_script";
+          assistantText = (isBangla && impossibleFood.correctionBangla) ? impossibleFood.correctionBangla : impossibleFood.correctionBanglish!;
+          built.intent = "general_chat";
+          built.sourceLabel = "Nanumoni";
+        } else if ((isSimpleGreeting || isVeryShort || built.skipGemini) && !isRewrite) {
           assistantText = built.template;
         } else {
           const language = getMessageLanguage(message);
+          
+          // Fetch conversation history for follow-up context
+          const { data: recentMessages } = await supabase
+            .from("chat_messages")
+            .select("role, parts")
+            .eq("thread_id", threadId)
+            .order("created_at", { ascending: false })
+            .limit(6);
+            
+          let conversationHistory: Array<{role: string, text: string}> = [];
+          if (recentMessages) {
+            // Reverse so they are chronological
+            conversationHistory = recentMessages.reverse().map((msg: any) => ({
+              role: msg.role,
+              text: extractTextFromParts(msg.parts)
+            }));
+          }
+
           const chatResponse = await generateChatResponse({ 
             userMessage: message, 
             template: built.template, 
             context: built.context,
             userProfile,
             requestedLanguage: language,
-            previousAssistantMessage: built.context?.previousAssistantMessage as string | undefined,
+            conversationHistory,
           });
           usedGemini = chatResponse.usedGemini;
           assistantText = usedGemini ? chatResponse.text : built.template;
