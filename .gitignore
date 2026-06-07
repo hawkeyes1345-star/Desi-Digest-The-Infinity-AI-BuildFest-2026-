@@ -41,3 +41,6 @@ supabase/.temp/
 .env
 .env.local
 .env.*.local
+.env.txt
+.env.txt.local
+*.env.txt

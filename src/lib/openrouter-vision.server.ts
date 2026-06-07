@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { getOpenRouterApiKey as getEnvOpenRouterApiKey } from "@/lib/env.server";
 
 const OpenRouterVisionResultSchema = z.object({
   detected: z.boolean(),
@@ -11,11 +12,7 @@ export type OpenRouterVisionResult = z.infer<typeof OpenRouterVisionResultSchema
  * Helper to get the OpenRouter API key and run strong server-side validation.
  */
 export function getOpenRouterApiKey(): string {
-  const apiKey = process.env.OPENROUTER_API_KEY?.trim();
-  if (!apiKey || apiKey === "sk-or-v1-your-key-here" || apiKey === "") {
-    throw new Error("Missing OpenRouter API key configuration on server.");
-  }
-  return apiKey;
+  return getEnvOpenRouterApiKey();
 }
 
 /**

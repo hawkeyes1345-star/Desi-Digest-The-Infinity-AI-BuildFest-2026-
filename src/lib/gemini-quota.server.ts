@@ -52,6 +52,8 @@ export function detectAndMapAiError(error: unknown): { code: SafeAiErrorType; is
   if (
     lower.includes("401") ||
     lower.includes("403") ||
+    lower.includes("missing gemini api key") ||
+    lower.includes("api key") ||
     lower.includes("model unavailable") ||
     lower.includes("unavailable")
   ) {
