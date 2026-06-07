@@ -332,8 +332,17 @@ export const Route = createFileRoute("/api/chat")({
           fallbackReason = chatResponse.fallbackReason;
         }
 
-        // Strip debug markers from assistantText before saving
-        assistantText = assistantText.replace(/\n?Template fallback response\.?/gi, "").trim();
+        // Post-generation sanitizer
+        assistantText = assistantText
+          .replace(/\b(Tony vai|Tony bhai|Tony)\b/gi, "Bujhlam")
+          .replace(/\b(Gemini|Template fallback response|API failed)\b/gi, "")
+          .replace(/as an AI|I am a language model|I am an AI/gi, "")
+          .replace(/Source:.*?(\n|$)/gi, "\n")
+          .replace(/Fallback:.*?(\n|$)/gi, "\n")
+          .replace(/Template:.*?(\n|$)/gi, "\n")
+          .replace(/^,\s*/, "")
+          .replace(/ {2,}/g, " ")
+          .trim();
 
         const userParts: UiPart[] = [{ type: "text", text: message }];
         const assistantParts: UiPart[] = [{ type: "text", text: assistantText }];
