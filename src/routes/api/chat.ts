@@ -2,7 +2,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
-import { classifyMessageIntent, extractLikelyLookupTerm } from "@/lib/intent-classifier";
+import { classifyMessageIntent, extractLikelyLookupTerm, getMessageLanguage } from "@/lib/intent-classifier";
 import { lookupNutrition, lookupOpenFda, lookupRxNorm, lookupWhoIcd } from "@/lib/external-api.server";
 import {
   conditionTemplate,
@@ -12,8 +12,10 @@ import {
   nutritionTemplate,
   sourceLabelForIntent,
   unknownTemplate,
+  foodComparisonTemplate,
 } from "@/lib/api-response-templates.server";
 import { generateChatResponse } from "@/lib/ai-gateway.server";
+import { extractFoodEntities, extractComparisonGroups } from "@/lib/bangladeshi-food-knowledge";
 
 type ChatRequestBody = { message?: unknown; threadId?: string; messages?: unknown; context?: unknown };
 
@@ -51,9 +53,56 @@ function roundNumber(value: unknown) {
   return Number.isFinite(number) ? Math.round(number) : 0;
 }
 
-function loggedMealReviewTemplate(rows: any[]) {
+function extractTextFromParts(parts: any): string {
+  if (typeof parts === "string") return parts;
+  if (Array.isArray(parts)) {
+    return parts.map((p: any) => (p?.type === "text" ? p.text : typeof p === "string" ? p : "")).join(" ").trim();
+  }
+  return "";
+}
+
+function loggedMealReviewTemplate(rows: any[], language: "bangla_script" | "banglish" | "english" = "banglish") {
+  if (language === "bangla_script") {
+    if (!rows.length) {
+      return "আজকের কোনো খাবার এখনও লগ করা হয়নি। খাবারের নাম লিখুন বা প্লেটের ছবি আপলোড করুন, আমি চেক করে দেব।";
+    }
+    return [
+      "আজকের লগ করা খাবার:",
+      ...rows.map((m: any) => {
+        const nutrients = [
+          roundNumber(m.calories) + " ক্যালরি",
+          roundNumber(m.protein_g) + " গ্রাম প্রোটিন",
+          roundNumber(m.carbs_g) + " গ্রাম কার্বস",
+          roundNumber(m.fat_g) + " গ্রাম ফ্যাট",
+        ].join(", ");
+        const score = typeof m.health_score === "number" ? ", হেলথ স্কোর " + Number(m.health_score).toFixed(1) + "/10" : "";
+        return "- " + m.meal_type + ": " + m.name + " (" + nutrients + score + ")";
+      }),
+    ].join("\n");
+  }
+
+  if (language === "english") {
+    if (!rows.length) {
+      return "I don't see any logged meals for today yet. Type a food name or upload a plate, and I'll review it.";
+    }
+    return [
+      "Today's logged meals:",
+      ...rows.map((m: any) => {
+        const nutrients = [
+          roundNumber(m.calories) + " kcal",
+          roundNumber(m.protein_g) + "g protein",
+          roundNumber(m.carbs_g) + "g carbs",
+          roundNumber(m.fat_g) + "g fat",
+        ].join(", ");
+        const score = typeof m.health_score === "number" ? ", health score " + Number(m.health_score).toFixed(1) + "/10" : "";
+        return "- " + m.meal_type + ": " + m.name + " (" + nutrients + score + ")";
+      }),
+    ].join("\n");
+  }
+
+  // Default: Banglish
   if (!rows.length) {
-    return "Ajker logged meal ami ekhono dekhte pacchi na. Food name type korun or plate upload korun, tahole ami check kore bolbo.\nTemplate fallback response.";
+    return "Ajker logged meal ami ekhono dekhte pacchi na. Food name type korun or plate upload korun, tahole ami check kore bolbo.";
   }
 
   return [
@@ -71,27 +120,81 @@ function loggedMealReviewTemplate(rows: any[]) {
   ].join("\n");
 }
 
-async function buildTemplateResponse(message: string, supabase: any): Promise<TemplateResponse> {
+async function buildTemplateResponse(message: string, supabase: any, threadId?: string, userProfile?: any): Promise<TemplateResponse> {
   const intent = classifyMessageIntent(message);
   const term = extractLikelyLookupTerm(message, intent);
+  const language = getMessageLanguage(message);
+
+  if (intent === "language_rewrite") {
+    let previousAssistantText = "";
+    if (threadId) {
+      const { data: lastAssistantMsg } = await supabase
+        .from("chat_messages")
+        .select("parts")
+        .eq("thread_id", threadId)
+        .eq("role", "assistant")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (lastAssistantMsg) {
+        previousAssistantText = extractTextFromParts(lastAssistantMsg.parts);
+      }
+    }
+
+    let fallbackTemplate = "";
+    if (language === "bangla_script") {
+      fallbackTemplate = "দুঃখিত, আমি এখন অনুবাদ করতে পারছি না। দয়া করে একটু পরে চেষ্টা করুন।";
+    } else if (language === "english") {
+      fallbackTemplate = "Sorry, I cannot translate right now. Please try again in a bit.";
+    } else {
+      fallbackTemplate = "Sorry, ami ekhon translate korte পারছি না। Please ektu por try korun.";
+    }
+
+    return {
+      intent,
+      term,
+      template: fallbackTemplate,
+      context: { previousAssistantMessage: previousAssistantText },
+      sourceLabel: "Nanumoni",
+      hasRetrievedData: previousAssistantText.length > 0,
+    };
+  }
+
+  if (intent === "food_comparison") {
+    const entities = extractFoodEntities(message, language);
+    const groups = extractComparisonGroups(message, language);
+    const goals = userProfile?.goals ?? [];
+    const primaryGoal = goals.find((g: string) => 
+      ["diabetes_friendly", "weight_loss", "muscle_gain", "heart_healthy", "low_sodium"].includes(g)
+    );
+    return {
+      intent,
+      term,
+      template: foodComparisonTemplate(entities, primaryGoal, language, groups, message),
+      context: { foodEntities: entities, foodGroups: groups },
+      sourceLabel: "Nutrition reference",
+      hasRetrievedData: entities.length > 0,
+    };
+  }
 
   if (intent === "nutrition") {
     const nutrition = await lookupNutrition(term, supabase);
-    return { intent, term, template: nutritionTemplate(nutrition), context: { nutritionData: nutrition }, sourceLabel: nutrition.sourceLabel, hasRetrievedData: true };
+    return { intent, term, template: nutritionTemplate(nutrition, language), context: { nutritionData: nutrition }, sourceLabel: nutrition.sourceLabel, hasRetrievedData: true };
   }
 
   if (intent === "medicine") {
     const [rxnorm, openfda] = await Promise.all([lookupRxNorm(term), lookupOpenFda(term)]);
-    return { intent, term, template: medicineTemplate(rxnorm, openfda), context: { medicineData: rxnorm, openfdaData: openfda }, sourceLabel: "RxNorm / openFDA", hasRetrievedData: true };
+    return { intent, term, template: medicineTemplate(rxnorm, openfda, language), context: { medicineData: rxnorm, openfdaData: openfda }, sourceLabel: "Medicine reference", hasRetrievedData: true };
   }
 
   if (intent === "condition") {
     const condition = await lookupWhoIcd(term);
-    return { intent, term, template: conditionTemplate(condition), context: { conditionData: condition }, sourceLabel: condition.sourceLabel, hasRetrievedData: true };
+    return { intent, term, template: conditionTemplate(condition, language), context: { conditionData: condition }, sourceLabel: condition.sourceLabel, hasRetrievedData: true };
   }
 
   if (intent === "health_safe_food_recommendation") {
-    return { intent, term, template: healthSafeFoodRecommendationTemplate(message), context: {}, sourceLabel: "General health guidelines", hasRetrievedData: false };
+    return { intent, term, template: healthSafeFoodRecommendationTemplate(message, language), context: {}, sourceLabel: "Health guidelines", hasRetrievedData: false };
   }
 
   if (intent === "logged_meal_review") {
@@ -105,9 +208,9 @@ async function buildTemplateResponse(message: string, supabase: any): Promise<Te
     return {
       intent,
       term,
-      template: loggedMealReviewTemplate(rows),
+      template: loggedMealReviewTemplate(rows, language),
       context: rows.length ? { mealHistory: rows } : {},
-      sourceLabel: rows.length ? "Supabase meal history" : "Template fallback response",
+      sourceLabel: rows.length ? "Your meal log" : "Nanumoni",
       hasRetrievedData: rows.length > 0,
       skipGemini: rows.length === 0,
     };
@@ -116,17 +219,30 @@ async function buildTemplateResponse(message: string, supabase: any): Promise<Te
   if (intent === "meal_history") {
     const { data } = await supabase.from("meal_logs").select("meal_type,name,calories,logged_at").order("logged_at", { ascending: false }).limit(5);
     const rows = Array.isArray(data) ? data : [];
-    const template = rows.length
-      ? ["Recent meal history:", ...rows.map((m: any) => "- " + m.meal_type + ": " + m.name + " (" + Math.round(Number(m.calories || 0)) + " kcal)"), "Template fallback response."].join("\n")
-      : "I do not see recent meal history yet. Add meals from plate analysis or the dashboard first.\nTemplate fallback response.";
-    return { intent, term, template, context: rows.length ? { mealHistory: rows } : {}, sourceLabel: rows.length ? "Supabase meal history" : "Template fallback response", hasRetrievedData: rows.length > 0 };
+    
+    let template = "";
+    if (language === "bangla_script") {
+      template = rows.length
+        ? ["সাম্প্রতিক খাবারের ইতিহাস:", ...rows.map((m: any) => "- " + m.meal_type + ": " + m.name + " (" + Math.round(Number(m.calories || 0)) + " ক্যালরি)")].join("\n")
+        : "সাম্প্রতিক খাবারের কোনো তথ্য নেই। প্লেট অ্যানালাইসিস বা ড্যাশবোর্ড থেকে খাবার যুক্ত করুন।";
+    } else if (language === "english") {
+      template = rows.length
+        ? ["Recent meal history:", ...rows.map((m: any) => "- " + m.meal_type + ": " + m.name + " (" + Math.round(Number(m.calories || 0)) + " kcal)")].join("\n")
+        : "No recent meal history yet. Add meals from plate analysis or dashboard.";
+    } else {
+      template = rows.length
+        ? ["Recent meal history:", ...rows.map((m: any) => "- " + m.meal_type + ": " + m.name + " (" + Math.round(Number(m.calories || 0)) + " kcal)")].join("\n")
+        : "Recent meal history ekhono nei. Plate analysis ba dashboard theke meal add korun.";
+    }
+
+    return { intent, term, template, context: rows.length ? { mealHistory: rows } : {}, sourceLabel: rows.length ? "Your meal log" : "Nanumoni", hasRetrievedData: rows.length > 0 };
   }
 
   if (intent === "general_chat") {
-    return { intent, term, template: generalChatTemplate(message), context: {}, sourceLabel: "Gemini conversation", hasRetrievedData: false };
+    return { intent, term, template: generalChatTemplate(message, language), context: {}, sourceLabel: "Nanumoni", hasRetrievedData: false };
   }
 
-  return { intent, term, template: unknownTemplate(), context: {}, sourceLabel: sourceLabelForIntent(intent), hasRetrievedData: false };
+  return { intent, term, template: unknownTemplate(language), context: {}, sourceLabel: sourceLabelForIntent(intent), hasRetrievedData: false };
 }
 
 export const Route = createFileRoute("/api/chat")({
@@ -163,29 +279,37 @@ export const Route = createFileRoute("/api/chat")({
         // Fetch user profile for context
         const { data: userProfile } = await supabase.from("profiles").select("*").eq("user_id", userId).maybeSingle();
 
-        const built = await buildTemplateResponse(message, supabase);
+        const built = await buildTemplateResponse(message, supabase, threadId, userProfile);
         
         // Distinguish simple greetings from real questions
         const isSimpleGreeting = /^(hi|hello|hey|salam|assalamu|assalamu alaikum|nanu|hola|namaste)$/i.test(message.toLowerCase());
         const isVeryShort = message.length < 3;
+        const isRewrite = built.intent === "language_rewrite";
+        const isComparison = built.intent === "food_comparison";
 
         let assistantText: string;
         let usedGemini = false;
         let fallbackReason: string | undefined;
 
-        if (isSimpleGreeting || isVeryShort || built.skipGemini) {
+        if ((isSimpleGreeting || isVeryShort || built.skipGemini) && !isRewrite && !isComparison) {
           assistantText = built.template;
         } else {
+          const language = getMessageLanguage(message);
           const chatResponse = await generateChatResponse({ 
             userMessage: message, 
             template: built.template, 
             context: built.context,
-            userProfile
+            userProfile,
+            requestedLanguage: language,
+            previousAssistantMessage: built.context?.previousAssistantMessage as string | undefined,
           });
           usedGemini = chatResponse.usedGemini;
           assistantText = usedGemini ? chatResponse.text : built.template;
           fallbackReason = chatResponse.fallbackReason;
         }
+
+        // Strip debug markers from assistantText before saving
+        assistantText = assistantText.replace(/\n?Template fallback response\.?/gi, "").trim();
 
         const userParts: UiPart[] = [{ type: "text", text: message }];
         const assistantParts: UiPart[] = [{ type: "text", text: assistantText }];
@@ -204,16 +328,16 @@ export const Route = createFileRoute("/api/chat")({
 
         const assistantRow = inserted?.find((row: any) => row.role === "assistant");
         
-        // Final source label logic
+        // Final source label logic — sanitize all provider/technical names
         let sourceLabel = built.sourceLabel;
         if (usedGemini && built.intent === "logged_meal_review" && built.hasRetrievedData) {
-          sourceLabel = "Supabase meal history + Gemini explanation";
+          sourceLabel = "Your meal log";
         } else if (usedGemini && built.hasRetrievedData) {
-          sourceLabel = built.sourceLabel + " + Gemini conversation";
+          sourceLabel = built.sourceLabel;
         } else if (usedGemini) {
-          sourceLabel = "Gemini conversation";
+          sourceLabel = "Nanumoni";
         } else if (fallbackReason || built.skipGemini) {
-          sourceLabel = "Template fallback response";
+          sourceLabel = "Nanumoni";
         }
 
         return Response.json({
@@ -223,8 +347,6 @@ export const Route = createFileRoute("/api/chat")({
           text: assistantText,
           intent: built.intent,
           sourceLabel: sourceLabel,
-          geminiUsed: usedGemini,
-          fallbackReason: fallbackReason,
         });
       },
     },

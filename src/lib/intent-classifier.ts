@@ -1,3 +1,5 @@
+import { extractFoodEntities } from "./bangladeshi-food-knowledge";
+
 export type MessageIntent =
   | "nutrition"
   | "medicine"
@@ -6,25 +8,114 @@ export type MessageIntent =
   | "general_chat"
   | "logged_meal_review"
   | "meal_history"
+  | "language_rewrite"
+  | "food_comparison"
   | "unknown";
 
-const MEDICINE_WORDS = [
+export const MEDICINE_WORDS = [
   "medicine", "medication", "drug", "tablet", "capsule", "dose", "dosage", "rx", "advil", "ibuprofen",
   "paracetamol", "acetaminophen", "napa", "aspirin", "metformin", "insulin", "antibiotic",
 ];
 
-const CONDITION_WORDS = [
+export const CONDITION_WORDS = [
   "diabetes", "blood pressure", "hypertension", "cholesterol", "pcos", "anemia", "anaemia", "kidney",
   "thyroid", "pregnancy", "pregnant", "condition", "disease", "icd", "diagnosis", "high blood pressure",
   "shastho", "heart", "diabates", "diabetic", "sugar", "pressure", "bp",
 ];
 
-const NUTRITION_WORDS = [
+export const NUTRITION_WORDS = [
   "calorie", "calories", "protein", "carb", "carbs", "fat", "fiber", "nutrition", "vitamin", "mineral",
   "rice", "bhat", "dal", "daal", "chicken", "curry", "fish", "mach", "egg", "dim", "roti", "khichuri",
   "tehari", "biryani", "shak", "vegetable", "food", "eat", "meal", "breakfast", "lunch", "dinner", "iftar",
   "mangsho", "murgi", "gorur mangsho", "goru", "khashi", "khabar", "khaoa", "khaw", "khete", "iccha", "meat",
 ];
+
+export function isLanguageRewriteRequest(message: string): boolean {
+  if (extractFoodEntities(message).length > 0) return false;
+
+  const text = message.toLowerCase().replace(/[?.!,]/g, " ").replace(/\s+/g, " ").trim();
+  
+  const langIndicators = [
+    "banglay likho", "banglay bolo", "bangla okkhore", "bangla letters", "bangla font", "bangla horof",
+    "বাংলায় বলো", "বাংলায় বলো", "বাংলায় লিখো", "বাংলায় লিখো", "বাংলা অক্ষরে", "বাংলা হরফে",
+    "rewrite in bangla", "translate to bangla", "make it bangla", "bangla script", "banglay daw",
+    "banglai likho", "banglai bolo", "banglai daw", "banglay likh", "banglay bolo na", "banglai lekho",
+    "banglay lekho", "banglaly likho"
+  ];
+  
+  const hasLangIndicator = langIndicators.some(indicator => text.includes(indicator)) ||
+    /\b(banglay|bangla okkhore|bangla letters|বাংলা অক্ষরে|বাংলায়|বাংলায়)\b/i.test(text);
+
+  if (!hasLangIndicator) return false;
+
+  const hasNewQuery = NUTRITION_WORDS.some(word => text.includes(word)) ||
+    MEDICINE_WORDS.some(word => text.includes(word)) ||
+    CONDITION_WORDS.some(word => text.includes(word));
+
+  return !hasNewQuery;
+}
+
+export function detectRequestedLanguage(message: string): "bangla_script" | "banglish" | "english" | null {
+  const text = message.toLowerCase();
+  
+  const banglaScriptIndicators = [
+    "banglay", "bangla okkhore", "bangla letters", "bangla font", "bangla horof", "bangla script",
+    "বাংলায়", "বাংলায়", "বাংলা অক্ষরে", "বাংলা হরফে", "banglai", "in bangla"
+  ];
+  
+  const banglishIndicators = [
+    "banglish", "banglish e", "banglish ey", "banglish okkhore", "banglish letters"
+  ];
+
+  const englishIndicators = [
+    "english", "english e", "english ey", "in english", "english letters"
+  ];
+
+  if (banglaScriptIndicators.some(ind => text.includes(ind))) {
+    return "bangla_script";
+  }
+  if (banglishIndicators.some(ind => text.includes(ind))) {
+    return "banglish";
+  }
+  if (englishIndicators.some(ind => text.includes(ind))) {
+    return "english";
+  }
+  
+  return null;
+}
+
+export function getMessageLanguage(message: string): "bangla_script" | "banglish" | "english" {
+  const explicit = detectRequestedLanguage(message);
+  if (explicit) return explicit;
+
+  if (/[\u0980-\u09FF]/.test(message)) {
+    return "bangla_script";
+  }
+
+  const text = message.toLowerCase();
+  
+  const englishOnly = [
+    "should i", "what is", "how many", "tell me about", "is it safe", "can i eat", 
+    "which one", "health benefits", "side effects", "recommendation", "alternative"
+  ];
+  
+  const hasEnglishOnly = englishOnly.some(phrase => text.includes(phrase));
+  
+  const banglishWords = [
+    "khabo", "kheyechi", "khalem", "khelam", "khaoa", "khawa", "khaw", "khete", 
+    "bhat", "dim", "mach", "mangsho", "hobe", "sathe", "shathe", "kotha", 
+    "apni", "tumi", "amar", "amader", "konta", "kontar", "valobashi", "valo", 
+    "bhalo", "thakle", "napa", "ranna", "tel", "lobon", "ruti", "diye"
+  ];
+  
+  const hasBanglish = banglishWords.some(word => text.includes(word));
+
+  if (hasEnglishOnly && !hasBanglish) {
+    return "english";
+  }
+  
+  return "banglish";
+}
 
 const HEALTH_RECOMMENDATION_WORDS = [
   "kom tk", "kom taka", "budget", "healthy", "low sodium", "kom lobon", "lobon kom", "option", "better",
@@ -43,6 +134,27 @@ const LOGGED_MEAL_REVIEW_PATTERNS = [
 export function classifyMessageIntent(message: string): MessageIntent {
   const text = message.toLowerCase().replace(/\s+/g, " ").trim();
   if (!text) return "unknown";
+
+  if (isLanguageRewriteRequest(message)) return "language_rewrite";
+
+  const entities = extractFoodEntities(message);
+  if (entities.length >= 2) {
+    const isComparisonQuery = /\b(konta|kontar|better|best|vs|versus|na|or|ar|tulanay|tulara|compare|comparison|maximum|jekono|choice|choise|prefer|preference|valo|bhalo|pushti|nutrition|calorie|protein)\b/i.test(text) ||
+      /\b(কোনটা|কোনটির|বেশি|ভালো|ভলো|না|আর|এবং|তুলনা|পছন্দ)\b/i.test(text) ||
+      text.includes("?") ||
+      text.includes(" vs ") ||
+      text.includes(" versus ");
+      
+    if (isComparisonQuery) {
+      return "food_comparison";
+    }
+  } else if (entities.length === 1) {
+    const hasExplicitVs = /\b(vs|versus|naki)\b/i.test(text) || /\b(নাকি|না)\b/i.test(text);
+    const hasComparisonKeyword = /\b(better|best|compare|comparison|tulanay|tula)\b/i.test(text) || /\b(ভালো|বেশি|তুলনা)\b/i.test(text);
+    if (hasExplicitVs && hasComparisonKeyword && text.includes("?")) {
+      return "food_comparison";
+    }
+  }
 
   // Simple cheap greetings or very short unclear messages shouldn't use Gemini
   if (/^(hi|hello|hey|salam|assalamu|assalamu alaikum|nanu|hola|namaste)$/.test(text)) return "general_chat";

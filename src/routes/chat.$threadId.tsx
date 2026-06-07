@@ -33,7 +33,7 @@ const SUGGESTIONS = [
   "Ramadan iftar ideas that won't spike sugar?",
 ];
 
-type ChatMessage = UIMessage & { sourceLabel?: string; geminiUsed?: boolean };
+type ChatMessage = UIMessage & { sourceLabel?: string };
 
 function ChatThread() {
   const { threadId } = useParams({ from: "/chat/$threadId" });
@@ -106,7 +106,6 @@ function ChatInner({ threadId, initialMessages }: { threadId: string; initialMes
           role: "assistant",
           parts: json.parts || [{ type: "text", text: json.text || "" }],
           sourceLabel: json.sourceLabel,
-          geminiUsed: json.geminiUsed,
         },
       ]);
     } catch (error) {
@@ -136,7 +135,9 @@ function ChatInner({ threadId, initialMessages }: { threadId: string; initialMes
           )}
 
           {messages.map((m) => {
-            const text = m.parts.map((p) => (p.type === "text" ? p.text : "")).join("");
+            const rawText = m.parts.map((p) => (p.type === "text" ? p.text : "")).join("");
+            // Strip debug markers from displayed text
+            const text = rawText.replace(/\n?Template fallback response\.?/gi, "").trim();
             if (m.role === "user") {
               return (
                 <Message key={m.id} from="user">
@@ -150,11 +151,6 @@ function ChatInner({ threadId, initialMessages }: { threadId: string; initialMes
                   <img src={nanumoniAvatar} alt="Nanumoni" width={32} height={32} className="mt-1 h-8 w-8 shrink-0 rounded-full ring-1 ring-border" />
                   <div className="min-w-0 flex-1">
                     <MessageResponse>{text}</MessageResponse>
-                    {m.sourceLabel && (
-                      <div className="mt-2 flex flex-wrap gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                        <span className="rounded-full bg-secondary px-2 py-0.5">Source: {m.sourceLabel}</span>
-                      </div>
-                    )}
                   </div>
                 </div>
               </Message>
