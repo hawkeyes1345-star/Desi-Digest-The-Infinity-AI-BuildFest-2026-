@@ -29,6 +29,7 @@ import {
   Trash2,
   AlertTriangle,
   RefreshCw,
+  Printer,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -185,6 +186,17 @@ function Dashboard() {
 
   const demo = isDemoSession();
   const [mounted, setMounted] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+
+  function handleExport() {
+    setIsExporting(true);
+    toast.info("Preparing doctor-shareable report...", { duration: 2000 });
+    setTimeout(() => {
+      window.open("/report?print=1", "_blank");
+      setIsExporting(false);
+      toast.success("Nutrition summary opened for printing!");
+    }, 1000);
+  }
 
   useEffect(() => {
     setMounted(true);
@@ -413,6 +425,16 @@ function Dashboard() {
                     qc.invalidateQueries({ queryKey: ["meals"] });
                   }}
                 />
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={handleExport}
+                  disabled={isExporting}
+                  className="shadow-soft"
+                >
+                  <Printer className="h-4 w-4 mr-1.5" />
+                  {isExporting ? "Generating..." : "Download Doctor-Shareable Summary"}
+                </Button>
                 <Link to="/plan">
                   <Button size="sm" variant="outline">
                     <Sparkles className="h-4 w-4" /> Today's plan

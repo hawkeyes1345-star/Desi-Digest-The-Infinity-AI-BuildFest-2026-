@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as ReportRouteImport } from './routes/report'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as PlatesRouteImport } from './routes/plates'
 import { Route as PlanRouteImport } from './routes/plan'
@@ -27,6 +28,11 @@ import { Route as ApiOpenfdaSearchRouteImport } from './routes/api/openfda/searc
 import { Route as ApiNutritionSearchRouteImport } from './routes/api/nutrition/search'
 import { Route as ApiEdamamImageFoodRouteImport } from './routes/api/edamam/image-food'
 
+const ReportRoute = ReportRouteImport.update({
+  id: '/report',
+  path: '/report',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProfileRoute = ProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
@@ -123,6 +129,7 @@ export interface FileRoutesByFullPath {
   '/plan': typeof PlanRoute
   '/plates': typeof PlatesRoute
   '/profile': typeof ProfileRoute
+  '/report': typeof ReportRoute
   '/api/chat': typeof ApiChatRoute
   '/chat/$threadId': typeof ChatThreadIdRoute
   '/chat/': typeof ChatIndexRoute
@@ -141,6 +148,7 @@ export interface FileRoutesByTo {
   '/plan': typeof PlanRoute
   '/plates': typeof PlatesRoute
   '/profile': typeof ProfileRoute
+  '/report': typeof ReportRoute
   '/api/chat': typeof ApiChatRoute
   '/chat/$threadId': typeof ChatThreadIdRoute
   '/chat': typeof ChatIndexRoute
@@ -161,6 +169,7 @@ export interface FileRoutesById {
   '/plan': typeof PlanRoute
   '/plates': typeof PlatesRoute
   '/profile': typeof ProfileRoute
+  '/report': typeof ReportRoute
   '/api/chat': typeof ApiChatRoute
   '/chat/$threadId': typeof ChatThreadIdRoute
   '/chat/': typeof ChatIndexRoute
@@ -182,6 +191,7 @@ export interface FileRouteTypes {
     | '/plan'
     | '/plates'
     | '/profile'
+    | '/report'
     | '/api/chat'
     | '/chat/$threadId'
     | '/chat/'
@@ -200,6 +210,7 @@ export interface FileRouteTypes {
     | '/plan'
     | '/plates'
     | '/profile'
+    | '/report'
     | '/api/chat'
     | '/chat/$threadId'
     | '/chat'
@@ -219,6 +230,7 @@ export interface FileRouteTypes {
     | '/plan'
     | '/plates'
     | '/profile'
+    | '/report'
     | '/api/chat'
     | '/chat/$threadId'
     | '/chat/'
@@ -239,6 +251,7 @@ export interface RootRouteChildren {
   PlanRoute: typeof PlanRoute
   PlatesRoute: typeof PlatesRoute
   ProfileRoute: typeof ProfileRoute
+  ReportRoute: typeof ReportRoute
   ApiChatRoute: typeof ApiChatRoute
   ApiEdamamImageFoodRoute: typeof ApiEdamamImageFoodRoute
   ApiNutritionSearchRoute: typeof ApiNutritionSearchRoute
@@ -249,6 +262,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/report': {
+      id: '/report'
+      path: '/report'
+      fullPath: '/report'
+      preLoaderRoute: typeof ReportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/profile': {
       id: '/profile'
       path: '/profile'
@@ -393,6 +413,7 @@ const rootRouteChildren: RootRouteChildren = {
   PlanRoute: PlanRoute,
   PlatesRoute: PlatesRoute,
   ProfileRoute: ProfileRoute,
+  ReportRoute: ReportRoute,
   ApiChatRoute: ApiChatRoute,
   ApiEdamamImageFoodRoute: ApiEdamamImageFoodRoute,
   ApiNutritionSearchRoute: ApiNutritionSearchRoute,
