@@ -51,6 +51,8 @@ type Props = {
 };
 
 const LOADING_STEPS = [
+  "Preparing your Desi Digest nutrition report…",
+  "Using Desi Digest local nutrition intelligence…",
   "Scanning visible food items...",
   "Estimating portions...",
   "Cross-checking nutrition...",
@@ -246,23 +248,7 @@ export function PlateAnalyzer({ trigger, userContext }: Props) {
 
   function getPlateAnalysisErrorMessage(error: unknown) {
     const message = error instanceof Error ? error.message : String(error || "");
-    const lower = message.toLowerCase();
     
-    if (
-      lower.includes("quota") ||
-      lower.includes("exhausted") ||
-      lower.includes("retry") ||
-      lower.includes("gemini") ||
-      lower.includes("edamam") ||
-      lower.includes("limit") ||
-      lower.includes("provider") ||
-      lower.includes("model") ||
-      lower.includes("429") ||
-      lower.includes("api") ||
-      lower.includes("resource_exhausted")
-    ) {
-      return "Nutrition scan is temporarily busy. You can still type the meal name or use a demo sample.";
-    }
     if (/Unsupported image MIME type/i.test(message)) {
       return "Please upload a PNG, JPG, JPEG, or WEBP image.";
     }
@@ -272,10 +258,7 @@ export function PlateAnalyzer({ trigger, userContext }: Props) {
     if (/couldn't identify food|no food/i.test(message)) {
       return "I couldn't identify food in this image. Try a clearer food photo.";
     }
-    if (/(<html|HTTP|Tomcat|Endpoint|ECONNREFUSED|timeout|JSON)/i.test(message)) {
-      return "Service is temporarily unavailable. Please try again later or use the manual entry.";
-    }
-    return message || "AI analysis failed. Please try again.";
+    return "Nanumoni is using local nutrition guidance right now. We need one quick confirmation to make your report more accurate.";
   }
 
   function reset() {

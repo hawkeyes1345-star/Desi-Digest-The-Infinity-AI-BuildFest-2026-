@@ -325,6 +325,8 @@ export async function getFoodNutrition(fdcId: string | number): Promise<Nutritio
   return nutritionFromFoodDataCentral(food);
 }
 
+import { getCache, setCache, stableHash } from "@/lib/cache.server";
+
 export async function estimateNutritionForFood(
   foodName: string,
   portionText?: string,
@@ -335,9 +337,20 @@ export async function estimateNutritionForFood(
   const grams = estimatePortionGrams(foodName, portion, explicitGrams);
   const normalized = normalizeFoodName(foodName);
 
+  const cacheKey = `nutrition-lookup:${stableHash(normalized)}`;
+
+  const cached = getCache<EnrichedFood>(cacheKey);
+  if (cached) {
+    if (process.env.NODE_ENV === "development") console.log(`[cache] hit nutrition-lookup`);
+    return { ...cached, portion, portion_grams: grams, nutrition: scaleNutrition(cached.nutrition, grams, cached.portion_grams) };
+  }
+  if (process.env.NODE_ENV === "development") console.log(`[cache] miss nutrition-lookup`);
+
+  let result: EnrichedFood;
+
   const local = await lookupLocalFoodDb(foodName, supabase);
   if (local) {
-    return {
+    result = {
       name: foodName,
       localName: local.food.name_bn,
       portion,
@@ -349,45 +362,52 @@ export async function estimateNutritionForFood(
       matched_food_name: local.food.name_en,
       nutrition_note: "Estimated from local Bangladeshi food data and image-based portion size.",
     };
-  }
-
-  try {
-    const searchResult = await searchFoodDataCentral(normalized);
-    if (searchResult?.fdcId) {
-      const per100g = await getFoodNutrition(searchResult.fdcId);
-      if (per100g && hasMeaningfulNutrition(per100g)) {
-        return {
-          name: foodName,
-          portion,
-          portion_grams: grams,
-          nutrition: scaleNutrition(per100g, grams, 100),
-          source: "usda",
-          nutrition_source: "usda",
-          nutrition_confidence: "medium",
-          matched_food_name: searchResult.description,
-          nutrition_note: "Estimated from USDA FoodData Central and image-based portion size.",
-        };
+  } else {
+    try {
+      const searchResult = await searchFoodDataCentral(normalized);
+      if (searchResult?.fdcId) {
+        const per100g = await getFoodNutrition(searchResult.fdcId);
+        if (per100g && hasMeaningfulNutrition(per100g)) {
+          result = {
+            name: foodName,
+            portion,
+            portion_grams: grams,
+            nutrition: scaleNutrition(per100g, grams, 100),
+            source: "usda",
+            nutrition_source: "usda",
+            nutrition_confidence: "medium",
+            matched_food_name: searchResult.description,
+            nutrition_note: "Estimated from USDA FoodData Central and image-based portion size.",
+          };
+        }
+      }
+    } catch (error) {
+      if (process.env.DEBUG === "true") {
+        console.error("[nutrition-enrichment] USDA lookup error details", error);
       }
     }
-  } catch (error) {
-    if (process.env.DEBUG === "true") {
-      console.error("[nutrition-enrichment] USDA lookup error details", error);
-    }
   }
 
-  console.warn(`[nutrition-enrichment] lookup unavailable for ${foodName}; using estimate`);
-  const fallback = FALLBACK_PER_100G[normalized] ?? FALLBACK_PER_100G.default;
-  return {
-    name: foodName,
-    portion,
-    portion_grams: grams,
-    nutrition: scaleNutrition(fallback, grams, 100),
-    source: "fallback",
-    nutrition_source: "fallback",
-    nutrition_confidence: "low",
-    matched_food_name: normalized === foodName.toLowerCase() ? undefined : normalized,
-    nutrition_note: "Nutrition is estimated because portion size is based on the image.",
-  };
+  if (!result!) {
+    console.warn(`[nutrition-enrichment] lookup unavailable for ${foodName}; using estimate`);
+    const fallback = FALLBACK_PER_100G[normalized] ?? FALLBACK_PER_100G.default;
+    result = {
+      name: foodName,
+      portion,
+      portion_grams: grams,
+      nutrition: scaleNutrition(fallback, grams, 100),
+      source: "fallback",
+      nutrition_source: "fallback",
+      nutrition_confidence: "low",
+      matched_food_name: normalized === foodName.toLowerCase() ? undefined : normalized,
+      nutrition_note: "Nutrition is estimated because portion size is based on the image.",
+    };
+  }
+
+  const ttl = result.nutrition_confidence === "low" ? 5 * 60 * 1000 : 24 * 60 * 60 * 1000;
+  setCache(cacheKey, result, ttl);
+
+  return result;
 }
 
 export async function enrichFoodsWithNutrition(

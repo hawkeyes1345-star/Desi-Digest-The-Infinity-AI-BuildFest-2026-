@@ -1,7 +1,8 @@
 const DEFAULT_MAX_CALLS = 30;
 let quotaDay = "";
 let quotaCount = 0;
-let geminiCooldownUntil = 0;
+let geminiFlashCooldownUntil = 0;
+let geminiLiteCooldownUntil = 0;
 
 function currentDayKey() {
   return new Date().toISOString().slice(0, 10);
@@ -21,16 +22,28 @@ export function useTemplateFallback() {
   return envFlag("USE_TEMPLATE_FALLBACK", true);
 }
 
-export function isGeminiOnCooldown(): boolean {
-  return Date.now() < geminiCooldownUntil;
+export function isGeminiFlashOnCooldown(): boolean {
+  return Date.now() < geminiFlashCooldownUntil;
 }
 
-export function setGeminiCooldown(minutes = 30) {
-  geminiCooldownUntil = Date.now() + minutes * 60 * 1000;
+export function setGeminiFlashCooldown(minutes = 30) {
+  geminiFlashCooldownUntil = Date.now() + minutes * 60 * 1000;
 }
 
-export function resetGeminiCooldown() {
-  geminiCooldownUntil = 0;
+export function resetGeminiFlashCooldown() {
+  geminiFlashCooldownUntil = 0;
+}
+
+export function isGeminiLiteOnCooldown(): boolean {
+  return Date.now() < geminiLiteCooldownUntil;
+}
+
+export function setGeminiLiteCooldown(minutes = 30) {
+  geminiLiteCooldownUntil = Date.now() + minutes * 60 * 1000;
+}
+
+export function resetGeminiLiteCooldown() {
+  geminiLiteCooldownUntil = 0;
 }
 
 export type SafeAiErrorType = "AI_QUOTA_EXCEEDED" | "AI_TEMPORARILY_UNAVAILABLE" | "AI_NETWORK_ERROR" | "AI_UNKNOWN_ERROR";
@@ -52,6 +65,7 @@ export function detectAndMapAiError(error: unknown): { code: SafeAiErrorType; is
   if (
     lower.includes("401") ||
     lower.includes("403") ||
+    lower.includes("404") ||
     lower.includes("missing gemini api key") ||
     lower.includes("api key") ||
     lower.includes("model unavailable") ||
@@ -63,6 +77,7 @@ export function detectAndMapAiError(error: unknown): { code: SafeAiErrorType; is
   if (
     lower.includes("timeout") ||
     lower.includes("network") ||
+    lower.includes("500") ||
     lower.includes("econnrefused") ||
     lower.includes("failed after retries") ||
     lower.includes("failed after 3 attempts")
@@ -74,7 +89,7 @@ export function detectAndMapAiError(error: unknown): { code: SafeAiErrorType; is
 }
 
 export function tryConsumeGeminiQuota() {
-  if (isGeminiOnCooldown()) {
+  if (isGeminiFlashOnCooldown() && isGeminiLiteOnCooldown()) {
     return { allowed: false, reason: "AI_QUOTA_EXCEEDED" };
   }
   if (!isGeminiChatEnabled()) return { allowed: false, reason: "Gemini chat is disabled" };
@@ -90,4 +105,3 @@ export function tryConsumeGeminiQuota() {
   quotaCount += 1;
   return { allowed: true, reason: null };
 }
-

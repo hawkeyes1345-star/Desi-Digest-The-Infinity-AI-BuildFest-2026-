@@ -13,9 +13,16 @@ import {
   sourceLabelForIntent,
   unknownTemplate,
   foodComparisonTemplate,
+  milkDairyTemplate,
+  riceComparisonTemplate,
+  budgetProteinTemplate,
+  fishRoeTemplate,
+  fruitComparisonTemplate,
 } from "@/lib/api-response-templates.server";
 import { generateChatResponse } from "@/lib/ai-gateway.server";
 import { extractFoodEntities, extractComparisonGroups, detectImpossibleFood } from "@/lib/bangladeshi-food-knowledge";
+import { getCache, setCache, stableHash } from "@/lib/cache.server";
+import { computeBMI } from "@/lib/profile.functions";
 
 type ChatRequestBody = { message?: unknown; threadId?: string; messages?: unknown; context?: unknown };
 
@@ -161,7 +168,51 @@ async function buildTemplateResponse(message: string, supabase: any, threadId?: 
     };
   }
 
-  if (intent === "food_comparison") {
+  if (intent === "milk_dairy") {
+    return {
+      intent,
+      term,
+      template: milkDairyTemplate(language, message),
+      context: {},
+      sourceLabel: "Nutrition reference",
+      hasRetrievedData: true,
+    };
+  }
+
+  if (intent === "rice_comparison") {
+    return {
+      intent,
+      term,
+      template: riceComparisonTemplate(language, message),
+      context: {},
+      sourceLabel: "Nutrition reference",
+      hasRetrievedData: true,
+    };
+  }
+
+  if (intent === "fish_roe") {
+    return {
+      intent,
+      term,
+      template: fishRoeTemplate(language, message),
+      context: {},
+      sourceLabel: "Nutrition reference",
+      hasRetrievedData: true,
+    };
+  }
+
+  if (intent === "fruit_comparison") {
+    return {
+      intent,
+      term,
+      template: fruitComparisonTemplate(language, message),
+      context: {},
+      sourceLabel: "Nutrition reference",
+      hasRetrievedData: true,
+    };
+  }
+
+  if (intent === "meat_comparison" || intent === "food_comparison") {
     const entities = extractFoodEntities(message, language);
     const groups = extractComparisonGroups(message, language);
     const goals = userProfile?.goals ?? [];
@@ -175,6 +226,17 @@ async function buildTemplateResponse(message: string, supabase: any, threadId?: 
       context: { foodEntities: entities, foodGroups: groups },
       sourceLabel: "Nutrition reference",
       hasRetrievedData: entities.length > 0,
+    };
+  }
+
+  if (intent === "budget_protein") {
+    return {
+      intent,
+      term,
+      template: budgetProteinTemplate(language, message),
+      context: {},
+      sourceLabel: "Nutrition reference",
+      hasRetrievedData: true,
     };
   }
 
@@ -242,7 +304,7 @@ async function buildTemplateResponse(message: string, supabase: any, threadId?: 
     return { intent, term, template: generalChatTemplate(message, language), context: {}, sourceLabel: "Nanumoni", hasRetrievedData: false };
   }
 
-  return { intent, term, template: unknownTemplate(language), context: {}, sourceLabel: sourceLabelForIntent(intent), hasRetrievedData: false };
+  return { intent, term, template: unknownTemplate(language), context: {}, sourceLabel: sourceLabelForIntent(intent), hasRetrievedData: false, skipGemini: true };
 }
 
 export const Route = createFileRoute("/api/chat")({
@@ -292,70 +354,146 @@ export const Route = createFileRoute("/api/chat")({
 
         const impossibleFood = detectImpossibleFood(message);
 
-        if (impossibleFood?.detected) {
-          const isBangla = /[\u0980-\u09FF]/.test(message) || getMessageLanguage(message) === "bangla_script";
-          assistantText = (isBangla && impossibleFood.correctionBangla) ? impossibleFood.correctionBangla : impossibleFood.correctionBanglish!;
-          built.intent = "general_chat";
-          built.sourceLabel = "Nanumoni";
-        } else if ((isSimpleGreeting || isVeryShort || built.skipGemini) && !isRewrite) {
-          assistantText = built.template;
-        } else {
-          const language = getMessageLanguage(message);
+        // Fetch conversation history for follow-up context
+        const { data: recentMessages } = await supabase
+          .from("chat_messages")
+          .select("role, parts")
+          .eq("thread_id", threadId)
+          .order("created_at", { ascending: false })
+          .limit(6);
           
-          // Fetch conversation history for follow-up context
-          const { data: recentMessages } = await supabase
-            .from("chat_messages")
-            .select("role, parts")
-            .eq("thread_id", threadId)
-            .order("created_at", { ascending: false })
-            .limit(6);
-            
-          let conversationHistory: Array<{role: string, text: string}> = [];
-          if (recentMessages) {
-            // Reverse so they are chronological
-            conversationHistory = recentMessages.reverse().map((msg: any) => ({
-              role: msg.role,
-              text: extractTextFromParts(msg.parts)
-            }));
-          }
-
-          const chatResponse = await generateChatResponse({ 
-            userMessage: message, 
-            template: built.template, 
-            context: built.context,
-            userProfile,
-            requestedLanguage: language,
-            conversationHistory,
-          });
-          usedGemini = chatResponse.usedGemini;
-          assistantText = usedGemini ? chatResponse.text : built.template;
-          fallbackReason = chatResponse.fallbackReason;
+        let conversationHistory: Array<{role: string, text: string}> = [];
+        if (recentMessages) {
+          // Reverse so they are chronological
+          conversationHistory = recentMessages.reverse().map((msg: any) => ({
+            role: msg.role,
+            text: extractTextFromParts(msg.parts)
+          }));
         }
 
-        // Post-generation sanitizer — strip ALL technical/provider labels
-        assistantText = assistantText
-          .replace(/\b(Tony vai|Tony bhai|Tony)\b/gi, "Bujhlam")
-          .replace(/\b(Gemini|gemini|ChatGPT|OpenAI|Claude|OpenRouter|openrouter|GPT-?4|GPT-?3\.?5?)\b/gi, "")
-          .replace(/Template fallback response\.?/gi, "")
-          .replace(/\b(API failed|API error|API call|model error)\b/gi, "")
-          .replace(/as an AI|I am a language model|I am an AI|as a language model/gi, "")
-          .replace(/\bSOURCE:\s*[^\n]*/gi, "")
-          .replace(/Source:\s*[^\n]*/gi, "")
-          .replace(/Fallback:\s*[^\n]*/gi, "")
-          .replace(/Template:\s*[^\n]*/gi, "")
-          .replace(/Provider:\s*[^\n]*/gi, "")
-          .replace(/Model:\s*[^\n]*/gi, "")
-          .replace(/\b(template[- ]?fallback|fallback[- ]?response|fallback[- ]?answer|fallback[- ]?mode)\b/gi, "")
-          .replace(/\b(SOURCE|PROVIDER|MODEL|RAG|FALLBACK)\b:\s*\S+/g, "")
-          .replace(/\bealthy\b/g, "healthy")
-          .replace(/\bEalthy\b/g, "Healthy")
-          .replace(/\bproteain\b/g, "protein")
-          .replace(/\bProteain\b/g, "Protein")
-          .replace(/\b(API|model|provider|fallback|template|source|RAG)\b/gi, "")
-          .replace(/^[,\s]+/, "")
-          .replace(/\n{3,}/g, "\n\n")
-          .replace(/ {2,}/g, " ")
-          .trim();
+        // Simple Regex to check for likely sensitive info (emails, phone numbers, SSNs, exact addresses)
+        const hasSensitiveData = /\b(?:\d[ -]*?){7,11}\b|\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/i.test(message);
+        const canCache = !hasSensitiveData && !isRewrite && !isSimpleGreeting && !isVeryShort && !impossibleFood?.detected && !built.skipGemini && ["nutrition", "food_comparison", "condition", "medicine", "milk_dairy", "rice_comparison", "meat_comparison", "budget_protein", "fish_roe", "fruit_comparison"].includes(built.intent);
+        
+        let chatCacheKey = "";
+        let chatCacheTtl = 0;
+
+        if (canCache) {
+          const profileHash = userProfile ? stableHash({ goals: userProfile.goals, bmi: computeBMI(userProfile as import("@/lib/profile.functions").Profile) }) : "no-profile";
+          const questionHash = stableHash({ message: message.toLowerCase().trim(), language: getMessageLanguage(message), history: conversationHistory.slice(-2) });
+          
+          if (userProfile) {
+            chatCacheKey = `chat:profile:${profileHash}:${questionHash}`;
+            chatCacheTtl = 1 * 60 * 60 * 1000;
+          } else {
+            chatCacheKey = `chat:generic:${questionHash}`;
+            chatCacheTtl = 2 * 60 * 60 * 1000;
+          }
+
+          const cachedChat = getCache<{ text: string; usedGemini: boolean; fallbackReason?: string }>(chatCacheKey);
+          if (cachedChat) {
+            if (process.env.NODE_ENV === "development") console.log(`[cache] hit chat`);
+            assistantText = cachedChat.text;
+            usedGemini = cachedChat.usedGemini;
+            fallbackReason = cachedChat.fallbackReason;
+          } else {
+            if (process.env.NODE_ENV === "development") console.log(`[cache] miss chat`);
+          }
+        }
+
+        if (assistantText! === undefined) {
+          if (impossibleFood?.detected) {
+            const isBangla = /[\u0980-\u09FF]/.test(message) || getMessageLanguage(message) === "bangla_script";
+            assistantText = (isBangla && impossibleFood.correctionBangla) ? impossibleFood.correctionBangla : impossibleFood.correctionBanglish!;
+            built.intent = "general_chat";
+            built.sourceLabel = "Nanumoni";
+          } else if ((isSimpleGreeting || isVeryShort || built.skipGemini) && !isRewrite) {
+            assistantText = built.template;
+          } else {
+            const language = getMessageLanguage(message);
+            
+            let chatResponse = await generateChatResponse({ 
+              userMessage: message, 
+              template: built.template, 
+              context: built.context,
+              userProfile,
+              requestedLanguage: language,
+              conversationHistory,
+            });
+
+            // Detect if response is mostly internal/debug text
+            const isInternalText = (text: string) => {
+              const lower = text.toLowerCase();
+              return (
+                lower.includes("user safety: safe") ||
+                lower.includes("safety: safe") ||
+                lower.includes("resource_exhausted") ||
+                lower.includes("quota_exceeded") ||
+                lower.includes("ai_quota_exceeded") ||
+                lower.includes("429") ||
+                (text.length < 50 && (lower.includes("api failed") || lower.includes("gemini failed") || lower.includes("openrouter failed")))
+              );
+            };
+
+            // Retry once if internal text detected
+            if (isInternalText(chatResponse.text)) {
+              console.warn("[chat-api] Internal text detected in response. Retrying with fallback...");
+              chatResponse = await generateChatResponse({
+                userMessage: message,
+                template: built.template,
+                context: built.context,
+                userProfile,
+                requestedLanguage: language,
+                conversationHistory,
+              });
+            }
+
+            usedGemini = chatResponse.usedGemini;
+            assistantText = usedGemini ? chatResponse.text : built.template;
+            fallbackReason = chatResponse.fallbackReason;
+
+            if (canCache && !/i can help with|ami deshi khabar|ami ekhon|jante chan|poramorsho dorkar|korte pari|help korte pari|sure na|not sure/i.test(assistantText.toLowerCase())) {
+              setCache(chatCacheKey, { text: assistantText, usedGemini, fallbackReason }, chatCacheTtl);
+            }
+          }
+        }
+
+        const sanitizeText = (text: string) => {
+          return text
+            .replace(/\b(Tony vai|Tony bhai|Tony)\b/gi, "Bujhlam")
+            .replace(/\b(Gemini|gemini|ChatGPT|OpenAI|Claude|OpenRouter|openrouter|GPT-?4|GPT-?3\.?5?)\b/gi, "")
+            .replace(/Template fallback response\.?/gi, "")
+            .replace(/\b(API failed|API error|API call|model error)\b/gi, "")
+            .replace(/as an AI|I am a language model|I am an AI|as a language model/gi, "")
+            .replace(/User Safety:\s*safe/gi, "")
+            .replace(/Safety:\s*safe/gi, "")
+            .replace(/Safety Rating:\s*\w+/gi, "")
+            .replace(/\bSOURCE:\s*[^\n]*/gi, "")
+            .replace(/Source:\s*[^\n]*/gi, "")
+            .replace(/Fallback:\s*[^\n]*/gi, "")
+            .replace(/Template:\s*[^\n]*/gi, "")
+            .replace(/Provider:\s*[^\n]*/gi, "")
+            .replace(/Model:\s*[^\n]*/gi, "")
+            .replace(/\b(template[- ]?fallback|fallback[- ]?response|fallback[- ]?answer|fallback[- ]?mode)\b/gi, "")
+            .replace(/\b(SOURCE|PROVIDER|MODEL|RAG|FALLBACK)\b:\s*\S+/g, "")
+            .replace(/\bealthy\b/g, "healthy")
+            .replace(/\bEalthy\b/g, "Healthy")
+            .replace(/\bproteain\b/g, "protein")
+            .replace(/\bProteain\b/g, "Protein")
+            .replace(/\b(API|model|provider|fallback|template|source|RAG|RESOURCE_EXHAUSTED|QUOTA_EXCEEDED|RATE_LIMIT|429|INTERNAL_ERROR)\b/gi, "")
+            .replace(/^[,\s]+/, "")
+            .replace(/\n{3,}/g, "\n\n")
+            .replace(/ {2,}/g, " ")
+            .trim();
+        };
+
+        assistantText = sanitizeText(assistantText);
+
+        // Final fallback if empty after sanitization
+        if (!assistantText) {
+          console.warn("[chat-api] Sanitized text empty. Using local fallback.");
+          assistantText = "Amar kache ekhon ei bishoye accurate nutrition data nei. Apni ki onno kono food niye jante chan? 😊";
+        }
 
         const userParts: UiPart[] = [{ type: "text", text: message }];
         const assistantParts: UiPart[] = [{ type: "text", text: assistantText }];
