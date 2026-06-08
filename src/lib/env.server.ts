@@ -1,6 +1,10 @@
 /**
  * Safe server-side environment variables manager for Desi Digest.
  * Crucially, this file is backend-only and should never be imported or executed in the client.
+ * 
+ * NOTE: After changing environment variables in .env or .env.local,
+ * the development server must be restarted:
+ * npm run dev
  */
 
 // Helper to log safe preview of keys for debugging in development without leaking secrets
@@ -110,6 +114,31 @@ export function getDataGovApiKey(): string | undefined {
     return undefined;
   }
   return apiKey;
+}
+
+/**
+ * Retrieves OpenRouter text model list.
+ */
+export function getOpenRouterTextModels(): string[] {
+  const models = process.env.OPENROUTER_TEXT_MODELS;
+  if (!models) return ["google/gemini-2.5-flash-lite", "openrouter/free"];
+  return models.split(",").map(m => m.trim()).filter(m => m !== "");
+}
+
+/**
+ * Retrieves OpenRouter vision model list.
+ */
+export function getOpenRouterVisionModels(): string[] {
+  const models = process.env.OPENROUTER_VISION_MODELS;
+  if (!models) return ["google/gemini-2.5-flash", "openrouter/free"];
+  return models.split(",").map(m => m.trim()).filter(m => m !== "");
+}
+
+/**
+ * Checks if AI consensus mode is enabled.
+ */
+export function isAiConsensusModeEnabled(): boolean {
+  return process.env.AI_CONSENSUS_MODE === "true";
 }
 
 /**

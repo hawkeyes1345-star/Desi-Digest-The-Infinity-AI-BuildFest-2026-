@@ -1,11 +1,10 @@
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { generateText, generateObject } from "ai";
 import { z } from "zod";
+import { analyzeImageWithOpenRouterVision } from "@/lib/openrouter-vision.server";
 import { AiPlateAnalysisSchema, type AiPlateAnalysisData, defaultAiPlateAnalysis } from "@/lib/plate/ai-schema";
 import {
   tryConsumeGeminiQuota,
-  isGeminiOnCooldown,
-  setGeminiCooldown,
   detectAndMapAiError
 } from "@/lib/gemini-quota.server";
 import { NANUMONI_KNOWLEDGE } from "@/lib/nanumoni-knowledge";
@@ -13,7 +12,7 @@ import { getGeminiApiKey as getEnvGeminiApiKey } from "@/lib/env.server";
 import { routeAiCall } from "@/lib/ai-router.server";
 import { generateOpenRouterText, generateOpenRouterObject } from "@/lib/openrouter-chat.server";
 
-export const CHAT_MODEL_NAME = process.env.GEMINI_CHAT_MODEL || "gemini-2.5-flash";
+export const CHAT_MODEL_NAME = "gemini-2.5-flash";
 type AiPhase = "chat" | "explanation";
 type AiModelName = string;
 
@@ -30,6 +29,53 @@ export function createGeminiProvider() {
 }
 
 
+
+import { isAiConsensusModeEnabled } from "@/lib/env.server";
+
+const ConsensusVerdictSchema = z.object({
+  verdict: z.enum(["approve", "revise", "uncertain"]),
+  issues: z.array(z.string()),
+  correctedFacts: z.array(z.string()),
+  finalAnswer: z.string().optional(),
+});
+
+async function runConsensusChat(input: Parameters<typeof generateChatResponse>[0], initialDraft: string): Promise<string> {
+  try {
+    const verifierSystem = `You are a strict Nutrition Verifier for Deshi Digest (Bangladesh).
+Your task is to review an AI assistant's draft answer for accuracy, safety, and local relevance.
+CRITICAL RULES:
+1. Identify impossible calories/macros or unrealistic portions.
+2. Check for unsafe medical claims (must include "General nutrition guidance — not medical advice.").
+3. Verify Bangladeshi food context.
+4. If the draft is good, set verdict to "approve".
+5. If facts are wrong, set verdict to "revise" and provide "finalAnswer".
+6. If unsure, set "uncertain" and provide a cautious "finalAnswer" with ranges.
+OUTPUT ONLY VALID JSON matching the requested schema.`;
+
+    const verifierUser = `Draft Answer to Review:
+"${initialDraft}"
+
+User Original Question:
+"${input.userMessage}"
+
+Provide your verdict in JSON format.`;
+
+    const consensus = await generateOpenRouterObject(ConsensusVerdictSchema, verifierSystem, verifierUser);
+    
+    if (consensus.verdict === "approve") {
+      return initialDraft;
+    }
+    
+    if (consensus.finalAnswer) {
+      return consensus.finalAnswer;
+    }
+    
+    return initialDraft;
+  } catch (error) {
+    console.error("[consensus-chat] verification failed, using initial draft", error);
+    return initialDraft;
+  }
+}
 
 export async function generateChatResponse(input: {
   userMessage: string;
@@ -54,90 +100,41 @@ CORE IDENTITY:
 - You give practical, specific food advice using Bangladeshi/South Asian food examples.
 - You feel like a trusted local friend who knows nutrition well.
 
+CHART & TABLE REQUESTS (STRICT):
+- If the user asks for a "pie chart", "chart", "graph", "table", "data", or "compare X and Y", return a clean Markdown table.
+- Do NOT pretend a visual chart was generated.
+- Add: "Visual chart is not available inside chat yet, so I’m showing it as a clear comparison table."
+- Columns: | Item | Calories (est.) | Protein (est.) | Health Verdict |
+
+NUTRITION ACCURACY & SAFETY (STRICT):
+- Use estimated/range-based values when exact data is unavailable.
+- Do NOT invent fake precise numbers (e.g., "3.24g"). Use "approx 3g" or "~3g".
+- For homemade Bangladeshi foods, mention variation from oil, salt, and portion size.
+- Plain cooked rice (Bhat): fat and sodium are negligible (~0) unless oil/salt/ghee is added.
+- Oily/fried/bhuna foods: mention oil-based variation.
+- Use phrasing: "Estimated per 100g", "Approximate for one medium serving", "Values can vary by oil, salt, and portion size".
+
 LANGUAGE RULES (ABSOLUTE):
 1. Match the user's language exactly:
-   - If requestedLanguage is "bangla_script" or user asks "banglay"/"বাংলায়"/"bangla okkhore" → reply ENTIRELY in Bangla script (বাংলা অক্ষরে). No English words except food names without Bangla equivalent.
+   - If requestedLanguage is "bangla_script" or user asks "banglay"/"বাংলায়"/"bangla okkhore" → reply ENTIRELY in Bangla script.
    - If requestedLanguage is "banglish" or user writes Banglish → reply in warm, natural Banglish.
    - If requestedLanguage is "english" or user writes English → reply in clear English.
-2. Translation/Rewrite: If "Rewrite previous answer" is provided, ONLY translate. Keep all facts identical. No new content.
-3. In Bangla script, use Bangla equivalents (e.g., "রক্তে শর্করা" not "blood sugar", "আমিষ" for "protein").
+2. Translation/Rewrite: If "Rewrite previous answer" is provided, ONLY translate. Keep all facts identical.
 
-SIMPLE FOOD COMPARISON FORMAT (STRICT — follow for ALL "X na Y?" / "konta khabo?" questions):
-Reply in 2–4 short paragraphs max:
-1. **Direct answer first**: State which food is the better choice clearly.
-2. **Reason**: Why — protein, blood sugar, fiber, etc.
-3. **When the other option is okay**: Acceptable preparation or portion.
-4. **Practical local suggestion**: A realistic local serving tip.
+FOOD COMPARISON FORMAT (STRICT — for "X na Y?" questions):
+1. **Direct answer first**: Clearly state which is better.
+2. **Reason**: 1-2 sentences on protein, sugar, or fat.
+3. **When the other is okay**: Context for the less healthy choice.
+4. **Practical local tip**: e.g., "Add 1 cup shak to balance the rice."
+5. **Short disclaimer**: "General nutrition guidance — not medical advice."
 
-ANSWER QUALITY & SPELLING (STRICT):
-- Always spell "healthy" correctly (NEVER write "ealthy").
-- Always spell "protein" correctly (NEVER write "proteain").
-- Answer the EXACT question. Do NOT give unrelated food advice.
-- Keep answers short, natural, clean, and local.
-- Give a clear verdict — do NOT sit on the fence.
-- Mention portion sizes: "1 cup bhat", "1 ta dim", "half plate shak".
+ANSWER QUALITY:
 - Max ONE emoji per response.
+- Max 3-4 short paragraphs.
+- Spell "healthy" and "protein" correctly.
+- Do NOT repeat profile data back.
 
-SAFETY & DISCLAIMERS:
-- Never diagnose, prescribe medicine, or tell the user to stop medication.
-- For disease, condition, pregnancy, or medicine safety questions, you must end your response with this exact phrase: "General nutrition guidance — not medical advice."
-- Do NOT write long-winded doctor disclaimers.
-
-DO NOT:
-- Dump calorie/macro tables (only if user asks "calorie koto", "nutrition value", "per 100g")
-- Give long generic lectures
-- Repeat the same point
-- Mention: "Gemini", "API", "template", "fallback", "source", "model", "Supabase", "database", "Edamam", "provider", "Template fallback response", "Source:", "as an AI"
-- Invent user names (no "Tony vai", "bro", "boss"). Use "Apni" or start directly.
-- List user profile data back to them.
-
-PROFILE PERSONALIZATION (use naturally when available):
-- diabetes_friendly → blood sugar impact, glycemic load
-- weight_loss → calorie density, portion control
-- muscle_gain → protein content
-- heart_healthy → sodium, saturated fat
-- student budget → affordable options
-- Recent high-carb meals → suggest lower-carb option
-
-BANGLISH SLANG: "pera nai" = "no problem" (NOT peyara/guava). "khabo" = will eat. "konta" = which one.
-
-RECIPE FORMAT (only when asked): Short confirmation → Ingredients (bullets) → Steps (3-4 bullets) → Healthier tip → Portion note.
-
-SAFETY: Never diagnose, prescribe medicine, or tell user to stop medication. For medical symptoms → gentle doctor mention at end only.
-
-FEW-SHOT EXAMPLES:
-
-Example 1 — Food comparison (Banglish):
-User: "alu na dim konta khabo"
-Response:
-Dim better choice hobe — karon dim e bhalo protein ache, pet beshi khon bhora rakhe, ar blood sugar alu er moto quickly baray na 😊
-
-Alu khawa jabe, but fried alu ba beshi poriman avoid koro. Choto portion rakho ar dal/shak er sathe mix koro.
-
-Best option: 1 ta siddho dim + choto portion bhat + shak-shobji.
-
-Example 2 — Portion question (Banglish):
-User: "Ami daily beef/mutton/meat khabo, koto khabo?"
-Response:
-Bujhlam, apni mangsho khete bhalobashen 😄
-Khawa jabe, but daily beshi na kheye portion control korle better.
-
-Best way:
-- Gorur/khashir mangsho hole lean piece nin, chorbi kom khan
-- Plate er 1/4 mangsho, 1/4 rice/ruti, 1/2 shak-shobji rakhun
-- Bhaja/extra tel kom rakhen
-
-Jodi weight loss, heart, ba diabetes goal thake, tahole red meat komiye chicken/fish/egg beshi safe.
-
-Example 3 — Budget query (Banglish):
-User: "budget e protein ki khabo?"
-Response:
-Budget-friendly protein options:
-- Dim (egg): shobar cheye shasta, 1 ta dim e ~7g protein
-- Masur dal: 1 cup e ~18g protein, price o very low
-- Deshi mach (mola/puti): choto mach e protein + calcium duitai ache
-
-Best combo: 2 ta dim + 1 cup dal + choto mach = full day protein almost covered.
+DO NOT mention: "Gemini", "API", "OpenRouter", "User Safety: safe", "Safety Rating", "RESOURCE_EXHAUSTED", "429", "model", "provider", "Template", "Source:".
 
 BANGLADESHI FOOD KNOWLEDGE BASE:
 ` + NANUMONI_KNOWLEDGE;
@@ -152,10 +149,22 @@ BANGLADESHI FOOD KNOWLEDGE BASE:
     input.template ? "[Reference hints: " + input.template + "]" : "",
   ].filter(Boolean).join("\n");
 
-  const geminiCall = async () => {
-    logAiModelUse("chat", CHAT_MODEL_NAME);
+  const geminiFlashCall = async () => {
+    logAiModelUse("chat", "gemini-2.5-flash");
     const result = await generateText({
-      model: createGeminiProvider()(CHAT_MODEL_NAME),
+      model: createGeminiProvider()("gemini-2.5-flash"),
+      system: systemPrompt,
+      messages: [{ role: "user", content: userPrompt }],
+    });
+    const text = result.text?.trim();
+    if (!text) throw new Error("Gemini returned an empty response");
+    return text;
+  };
+
+  const geminiLiteCall = async () => {
+    logAiModelUse("chat", "gemini-2.5-flash-lite");
+    const result = await generateText({
+      model: createGeminiProvider()("gemini-2.5-flash-lite"),
       system: systemPrompt,
       messages: [{ role: "user", content: userPrompt }],
     });
@@ -173,10 +182,26 @@ BANGLADESHI FOOD KNOWLEDGE BASE:
     return input.template;
   };
 
-  const result = await routeAiCall(geminiCall, openRouterCall, fallbackCall, "chat");
+  const result = await routeAiCall({
+    geminiFlash: geminiFlashCall,
+    geminiLite: geminiLiteCall,
+    openRouter: openRouterCall,
+    fallback: fallbackCall
+  }, "chat");
+
+  let finalOutput = result.result;
+
+  // Consensus mode for high-value tasks
+  if (isAiConsensusModeEnabled() && result.provider.startsWith("gemini")) {
+    const needsConsensus = /calorie|protein|carb|fat|estimate|chart|table|data|compare|healthy|diabetes|weight|heart|sodium|medicine|symptom/i.test(input.userMessage);
+    if (needsConsensus) {
+      console.info("[consensus] running verification for high-value task");
+      finalOutput = await runConsensusChat(input, finalOutput);
+    }
+  }
 
   return {
-    text: result.result,
+    text: finalOutput,
     usedGemini: result.provider !== 'fallback',
     fallbackReason: result.fallbackReason
   };
@@ -207,10 +232,21 @@ Calculated Nutrition: ${JSON.stringify(nutrition)}
 User Profile & Goals: ${JSON.stringify(userProfile || {})}
 `;
 
-  const geminiCall = async () => {
-    logAiModelUse("explanation", CHAT_MODEL_NAME);
+  const geminiFlashCall = async () => {
+    logAiModelUse("explanation", "gemini-2.5-flash");
     const result = await generateObject({
-      model: createGeminiProvider()(CHAT_MODEL_NAME),
+      model: createGeminiProvider()("gemini-2.5-flash"),
+      schema: AiPlateAnalysisSchema,
+      system: systemPrompt,
+      prompt: userPrompt,
+    });
+    return result.object;
+  };
+
+  const geminiLiteCall = async () => {
+    logAiModelUse("explanation", "gemini-2.5-flash-lite");
+    const result = await generateObject({
+      model: createGeminiProvider()("gemini-2.5-flash-lite"),
       schema: AiPlateAnalysisSchema,
       system: systemPrompt,
       prompt: userPrompt,
@@ -227,7 +263,12 @@ User Profile & Goals: ${JSON.stringify(userProfile || {})}
     return getLocalPlateInsights(detectedFoods, nutrition, userProfile);
   };
 
-  const result = await routeAiCall(geminiCall, openRouterCall, fallbackCall, "insights");
+  const result = await routeAiCall({
+    geminiFlash: geminiFlashCall,
+    geminiLite: geminiLiteCall,
+    openRouter: openRouterCall,
+    fallback: fallbackCall
+  }, "insights");
 
   return {
     data: result.result,
@@ -243,35 +284,115 @@ export const GeminiVisionFoodSchema = z.object({
 
 export type GeminiVisionFoodResult = z.infer<typeof GeminiVisionFoodSchema>;
 
+async function runConsensusVision(initialResult: GeminiVisionFoodResult): Promise<GeminiVisionFoodResult> {
+  try {
+    const verifierSystem = `You are a strict Nutrition Vision Verifier for Deshi Digest (Bangladesh).
+Your task is to review detected food items from an image analysis for accuracy and realism.
+CRITICAL RULES:
+1. Identify impossible food combinations.
+2. Check for unrealistic portions.
+3. Ensure Bangladeshi food context is accurate.
+4. If the detection looks good, set verdict to "approve".
+5. If items look wrong or unrealistic, set verdict to "revise" and provide "correctedFoods".
+OUTPUT ONLY VALID JSON:
+{
+  "verdict": "approve" | "revise",
+  "correctedFoods": [{"name": string}]
+}`;
+
+    const verifierUser = `Detected Foods to Review:
+${JSON.stringify(initialResult.foods)}
+
+Provide your verdict in JSON format.`;
+
+    const consensus = await generateOpenRouterObject(z.object({
+      verdict: z.enum(["approve", "revise"]),
+      correctedFoods: z.array(z.object({ name: z.string() })).optional(),
+    }), verifierSystem, verifierUser);
+    
+    if (consensus.verdict === "approve" || !consensus.correctedFoods) {
+      return initialResult;
+    }
+    
+    return {
+      detected: initialResult.detected,
+      foods: consensus.correctedFoods
+    };
+  } catch (error) {
+    console.error("[consensus-vision] verification failed, using initial result", error);
+    return initialResult;
+  }
+}
+
 export async function analyzeImageWithGeminiVision(
   imageBase64: string,
   mimeType: string
-): Promise<{ detected: boolean; foods: Array<{ name: string }> }> {
-  logAiModelUse("explanation", CHAT_MODEL_NAME);
-  const result = await generateObject({
-    model: createGeminiProvider()(CHAT_MODEL_NAME),
-    schema: GeminiVisionFoodSchema,
-    system: `You are Nanumoni, a HealthTech AI assistant for Deshi Digest (Bangladesh).
+): Promise<{ 
+  detected: boolean; 
+  foods: Array<{ name: string }>; 
+  usedGemini: boolean; 
+  provider?: string;
+  fallbackReason?: string 
+}> {
+  
+  const geminiFlashCall = async () => {
+    logAiModelUse("explanation", "gemini-2.5-flash");
+    const result = await generateObject({
+      model: createGeminiProvider()("gemini-2.5-flash"),
+      schema: GeminiVisionFoodSchema,
+      system: `You are Nanumoni, a HealthTech AI assistant for Deshi Digest (Bangladesh).
 Your job is to look at the provided image and identify the food items on the plate.
 CRITICAL RULES:
 1. OUTPUT ONLY VALID JSON matching the requested schema.
 2. Favor Bangladeshi/South Asian food names (e.g. "bhat", "rui macher jhol", "shak", "dal") if appropriate.
 3. If no food is clearly visible, set detected to false.`,
-    messages: [
-      {
-        role: "user",
-        content: [
-          { type: "text", text: "What food is on this plate?" },
-          {
-            type: "image",
-            image: Buffer.from(imageBase64, "base64"),
-          },
-        ],
-      },
-    ],
-  });
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "What food is on this plate?" },
+            {
+              type: "image",
+              image: Buffer.from(imageBase64, "base64"),
+            },
+          ],
+        },
+      ],
+    });
+    return result.object;
+  };
 
-  return { detected: result.object.detected, foods: result.object.foods };
+  const openRouterCall = async () => {
+    logAiModelUse("explanation", "openrouter-vision");
+    const res = await analyzeImageWithOpenRouterVision(imageBase64, mimeType);
+    return { detected: res.detected, foods: res.foods };
+  };
+
+  const fallbackCall = () => {
+    return { detected: false, foods: [] };
+  };
+
+  const result = await routeAiCall({
+    geminiFlash: geminiFlashCall,
+    openRouter: openRouterCall,
+    fallback: fallbackCall
+  }, "vision");
+
+  let finalResult = result.result;
+
+  // Consensus mode for vision
+  if (isAiConsensusModeEnabled() && result.provider.startsWith("gemini") && finalResult.detected) {
+    console.info("[consensus] running vision verification");
+    finalResult = await runConsensusVision(finalResult);
+  }
+
+  return { 
+    detected: finalResult.detected, 
+    foods: finalResult.foods,
+    usedGemini: result.provider === 'gemini-flash',
+    provider: result.provider,
+    fallbackReason: result.fallbackReason
+  };
 }
 
 export function getLocalPlateInsights(

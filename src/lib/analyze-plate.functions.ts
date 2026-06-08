@@ -43,7 +43,7 @@ export type PlateAnalysis = {
   nutritionEstimated: boolean;
   nutritionSources: string[];
   nutritionNote: string;
-  modelUsed: "edamam-image-food" | "gemini-vision-fallback" | "openrouter-vision-fallback" | "manual-entry" | "demo-sample" | "template-fallback";
+  modelUsed: "edamam-image-food" | "gemini-vision-fallback" | "gemini-lite-vision-fallback" | "openrouter-vision-fallback" | "manual-entry" | "demo-sample" | "template-fallback";
   fallbackReason?: string;
   detectionUnavailable?: boolean;
   debugMessage?: string;
@@ -154,6 +154,8 @@ export function parseTypedMeal(typedMeal: string): string[] {
   return parts;
 }
 
+import { getCache, setCache, stableHash } from "@/lib/cache.server";
+
 export const analyzePlate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => InputSchema.parse(input))
@@ -170,6 +172,32 @@ export const analyzePlate = createServerFn({ method: "POST" })
     const { data: profileRow } = await supabase.from("profiles").select("*").eq("user_id", userId).maybeSingle();
     const profile = (profileRow as Profile | null) ?? null;
     const profileMeta = { profileIncomplete: missingProfileFields(profile).length > 0, missingProfileFields: missingProfileFields(profile), bmi: computeBMI(profile) };
+
+    const profileHash = stableHash(profile);
+    let cacheKey = "";
+    let cacheTtl = 0;
+    const prefixForLog = "plate-analysis";
+
+    if (data.demoSample) {
+      cacheKey = `plate-analysis:typed:${stableHash(data.demoSample.toLowerCase().trim())}:${profileHash}`;
+      cacheTtl = 12 * 60 * 60 * 1000;
+    } else if (data.typedMeal) {
+      cacheKey = `plate-analysis:typed:${stableHash(data.typedMeal.toLowerCase().trim())}:${profileHash}`;
+      cacheTtl = 12 * 60 * 60 * 1000;
+    } else {
+      cacheKey = `plate-analysis:image:${stableHash(imageBase64)}:${profileHash}`;
+      cacheTtl = 1 * 60 * 60 * 1000;
+    }
+
+    const cached = getCache<PlateAnalysis>(cacheKey);
+    if (cached) {
+      if (process.env.NODE_ENV === "development") console.log(`[cache] hit ${prefixForLog}`);
+      return {
+        ...cached,
+        nanumoniMessage: "Recent scan reused. " + cached.nanumoniMessage
+      };
+    }
+    if (process.env.NODE_ENV === "development") console.log(`[cache] miss ${prefixForLog}`);
 
     let edamam: Awaited<ReturnType<typeof lookupEdamamImageFood>> | null = null;
     let gemini: Awaited<ReturnType<typeof analyzeImageWithGeminiVision>> | null = null;
@@ -228,29 +256,28 @@ export const analyzePlate = createServerFn({ method: "POST" })
         // Fallback to Vision AI
         console.info(`[image-analysis] external provider limited; using vision estimate`);
 
-        const geminiCall = () => analyzeImageWithGeminiVision(imageBase64, mimeType!);
-        const openRouterCall = async () => {
-          const res = await analyzeImageWithOpenRouterVision(imageBase64, mimeType!);
-          if (res.error) throw new Error(res.error);
-          return res;
-        };
-        const fallbackCall = () => {
-          return { detected: false, foods: [], fallbackReason: "Image food detection failed." };
-        };
+        const visionResult = await analyzeImageWithGeminiVision(imageBase64, mimeType!);
 
-        const visionResult = await routeAiCall(geminiCall, openRouterCall, fallbackCall, "vision");
-
-        if (visionResult.result.detected && visionResult.result.foods.length) {
-          modelUsed = visionResult.provider === 'openrouter' ? "openrouter-vision-fallback" : "gemini-vision-fallback";
+        if (visionResult.detected && visionResult.foods.length) {
           detected = true;
-          detectedFoods = visionResult.result.foods.slice(0, 5).map((food) => ({
+          detectedFoods = visionResult.foods.slice(0, 5).map((food) => ({
             name: food.name,
             portion: "1 visible portion",
             confidence: "medium",
-            note: `Detected by ${visionResult.provider === 'openrouter' ? 'OpenRouter' : 'Gemini'} Vision; nutrition was calculated by local/USDA lookup.`,
+            note: `Detected by Vision AI; nutrition was calculated by local/USDA lookup.`,
           }));
+          
+          if (visionResult.provider === 'gemini-flash') {
+            modelUsed = "gemini-vision-fallback";
+          } else if (visionResult.provider === 'gemini-lite') {
+            modelUsed = "gemini-lite-vision-fallback";
+          } else if (visionResult.provider === 'openrouter') {
+            modelUsed = "openrouter-vision-fallback";
+          } else {
+            modelUsed = "gemini-vision-fallback";
+          }
         } else {
-          fallbackReason = (visionResult.result as any).fallbackReason || visionResult.fallbackReason || "Image food detection failed.";
+          fallbackReason = visionResult.fallbackReason || "Image food detection failed.";
           errorCode = visionResult.fallbackReason;
         }
       }
@@ -268,7 +295,7 @@ export const analyzePlate = createServerFn({ method: "POST" })
         publicMessage = "Nutrition scan is temporarily busy. You can still type the meal name or use a demo sample.";
       }
 
-      return {
+      const result: PlateAnalysis = {
         detected: false,
         blurry: false,
         nanumoniMessage: publicMessage,
@@ -298,6 +325,9 @@ export const analyzePlate = createServerFn({ method: "POST" })
         ragGrounding: [],
         ...profileMeta,
       };
+      // Do not cache failures for long
+      setCache(cacheKey, result, 5 * 60 * 1000); // 5 mins
+      return result;
     }
 
     const dishes = await enrichFoodsWithNutrition(detectedFoods, supabase);
@@ -324,7 +354,7 @@ export const analyzePlate = createServerFn({ method: "POST" })
       nutritionNote = "Nutrition estimate may be incomplete for a full meal. Please confirm or type the main items.";
     }
 
-    return {
+    const result: PlateAnalysis = {
       detected: true,
       blurry: false,
       nanumoniMessage,
@@ -351,4 +381,7 @@ export const analyzePlate = createServerFn({ method: "POST" })
       ragGrounding: dishes.filter((dish) => dish.matched_food_name).map((dish) => ({ dish: dish.name, matched: dish.matched_food_name || "", similarity: dish.nutrition_confidence === "high" ? 0.9 : dish.nutrition_confidence === "medium" ? 0.75 : 0.5 })),
       ...profileMeta,
     };
+    
+    setCache(cacheKey, result, cacheTtl);
+    return result;
   });

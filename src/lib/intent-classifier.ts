@@ -10,6 +10,12 @@ export type MessageIntent =
   | "meal_history"
   | "language_rewrite"
   | "food_comparison"
+  | "milk_dairy"
+  | "rice_comparison"
+  | "meat_comparison"
+  | "budget_protein"
+  | "fish_roe"
+  | "fruit_comparison"
   | "unknown";
 
 export const MEDICINE_WORDS = [
@@ -144,52 +150,70 @@ export function classifyMessageIntent(message: string): MessageIntent {
   const isFollowUp = /^(vat khbo|khabo|eta khabo|ar ki|konta better|tahole eta|tahole|ok|acha|accha|thik ache|ruti khabo|dim khabo)$/i.test(text);
   if (isFollowUp) return "general_chat";
 
-  const entities = extractFoodEntities(message);
-  if (entities.length >= 2) {
-    const isComparisonQuery = /\b(konta|kontar|better|best|vs|versus|na|or|ar|tulanay|tulara|compare|comparison|maximum|jekono|choice|choise|prefer|preference|valo|bhalo|pushti|nutrition|calorie|protein|uchit)\b/i.test(text) ||
-      /\b(কোনটা|কোনটির|বেশি|ভালো|ভলো|না|আর|এবং|তুলনা|পছন্দ|উচিত)\b/i.test(text) ||
-      text.includes("?") ||
-      text.includes(" vs ") ||
-      text.includes(" versus ");
-      
-    if (isComparisonQuery) {
-      return "food_comparison";
-    }
-  } else if (entities.length === 1) {
-    const hasExplicitVs = /\b(vs|versus|naki|na)\b/i.test(text) || /\b(নাকি|না)\b/i.test(text);
-    const hasComparisonKeyword = /\b(better|best|compare|comparison|tulanay|tula|uchit)\b/i.test(text) || /\b(ভালো|বেশি|তুলনা|উচিত)\b/i.test(text);
-    if (hasExplicitVs && hasComparisonKeyword && text.includes("?")) {
-      return "food_comparison";
-    }
-  }
-
-  if (text.length < 3) return "unknown";
-
+  // Core user logs/history (High priority so it doesn't get intercepted by food checks)
   if (LOGGED_MEAL_REVIEW_PATTERNS.some((pattern) => pattern.test(text))) return "logged_meal_review";
   if (HISTORY_WORDS.some((word) => text.includes(word)) && /\b(i|my|today|yesterday|logged|ate)\b/.test(text)) return "meal_history";
 
+  // 1. impossible/unsafe food detection (checked at chat.ts level)
+
+  // 2. milk/dairy phrases
+  const hasMilk = /(gorur?\s+dudh?|cow\s+milk|\bdudh?\b|\bdud\b|দুধ|গরুর\s+দুধ)/i.test(text);
+  if (hasMilk) return "milk_dairy";
+
+  // 2.5. fish roe / macher dim
+  const hasFishRoe = /(macher?\s+dim|fish\s+egg|fish\s+roe|ইলিশের\s+ডিম|রুইয়ের\s+ডিম|মাছের\s+ডিম)/i.test(text);
+  if (hasFishRoe) return "fish_roe";
+
+  // 2.6. fruit comparison / dragon fruit / cactus
+  const hasFruitComparison = /(mango\s+vs\s+cactus|aam\s+vs\s+cactus|mango\s+vs\s+dragon|aam\s+vs\s+dragon|cactus\s+fruit|dragon\s+fruit|আম\s+বনাম\s+ক্যাকটাস|ড্রাগন\s+ফল)/i.test(text) ||
+    (/(mango|aam|cactus|dragon\s+fruit)/i.test(text) && /\b(vs|naki|na|better|comparison|compare|valo|bhalo|tulanay)\b/i.test(text));
+  if (hasFruitComparison) return "fruit_comparison";
+
+  // 3. rice variety comparison
+  const hasRiceComparison = /(chinigura|najir|nazir|shail|miniket|\b28\b|আটাশ|atash)/i.test(text);
+  if (hasRiceComparison) return "rice_comparison";
+
+  // 4. egg/fish/meat comparison (or general food comparison of >= 2 foods)
+  const entities = extractFoodEntities(message);
+  if (entities.length >= 2) {
+    const hasMeat = entities.some(e => e.category === "proteins");
+    if (hasMeat) return "meat_comparison";
+    return "food_comparison";
+  }
+
+  const isMeatOrEggOrFish = /(dim|egg|mach|fish|murgi|chicken|beef|goru|mutton|khashi|mangsho|meat|ডিম|মাছ|মুরগি|গরু|খাসি|মাংস)/i.test(text);
+  const isComparisonQuery = /\b(konta|kontar|better|best|vs|versus|na|or|ar|tulanay|tulara|compare|comparison|prefer|preference|valo|bhalo|pushti|nutrition|calorie|protein|uchit)\b/i.test(text) ||
+    /\b(কোনটা|কোনটির|বেশি|ভালো|ভলো|না|আর|এবং|তুলনা|পছন্দ|উচিত)\b/i.test(text) ||
+    text.includes("?") ||
+    text.includes(" vs ") ||
+    text.includes(" versus ");
+
+  if (isMeatOrEggOrFish && isComparisonQuery) {
+    return "meat_comparison";
+  }
+
+  // 6. budget protein
+  const hasBudget = /(budget|kom\s*tk|kom\s*taka|150\s*tk|150\s*taka|tk|taka|টাকা|টাকায়)/i.test(text);
+  if (hasBudget && (isMeatOrEggOrFish || text.includes("khabar") || text.includes("food") || text.includes("suggest"))) {
+    return "budget_protein";
+  }
+
+  // 5. diabetes/weight loss/heart health
+  const hasCondition = CONDITION_WORDS.some((word) => text.includes(word)) ||
+    /(diabetes|diabates|diabetic|sugar|weight\s*loss|diet|heart|pressure|bp|hypertension|cholesterol|ulcer|gastric|gastrick|kidney|thyroid|pregnancy|pregnant|ডায়াবেটিস|ওজন|হার্ট|প্রেসার|আলসার|কিডনি)/i.test(text);
+  if (hasCondition) return "condition";
+
+  // 7. generic nutrition
+  const hasNutrition = NUTRITION_WORDS.some((word) => text.includes(word));
+  if (entities.length > 0 || hasNutrition) {
+    return "nutrition";
+  }
+
   if (/\b(skip|light|something light)\b.*\b(dinner|meal|khabar)\b/.test(text)) return "general_chat";
 
-  const hasNutrition = NUTRITION_WORDS.some((word) => text.includes(word));
-  const hasCondition = CONDITION_WORDS.some((word) => text.includes(word));
-  const hasHealthRec = HEALTH_RECOMMENDATION_WORDS.some((word) => text.includes(word));
-
-  // "Can I eat X", "Is X safe", "khawa jabe?", etc.
-  const isQuestioningSafety = /\b(jabe|khaw|khawa|good|better|safe|best|should|can|i|eat|uchit)\b/i.test(text) && text.includes("?");
-
-  if ((hasHealthRec || isQuestioningSafety) && (hasNutrition || hasCondition)) return "health_safe_food_recommendation";
-
-  // Short broad nutrition/condition mentions often need natural conversation/Gemini rather than raw lookup
-  if (text.length < 12 && (text === "need food" || text === "healthy food" || text === "diet plan")) return "general_chat";
-
   if (MEDICINE_WORDS.some((word) => text.includes(word))) return "medicine";
-  if (hasCondition) return "condition";
-  
-  // If it matches nutrition but has no clear safety/recommendation keywords, usually it's just general info
-  // Treat as general chat to let Gemini handle it naturally with context
-  if (hasNutrition) return "general_chat";
 
-  // If it's a real question but didn't match keywords, use general_chat to trigger Gemini
+  if (text.length < 3) return "unknown";
   if (text.length > 8 || text.includes("?")) return "general_chat";
 
   return "unknown";

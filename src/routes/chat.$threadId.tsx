@@ -157,7 +157,24 @@ function ChatInner({ threadId, initialMessages }: { threadId: string; initialMes
         },
       ]);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Nanumoni couldn't reply. Please try again.");
+      const msg = error instanceof Error ? error.message : "Nanumoni couldn't reply. Please try again.";
+      const lower = msg.toLowerCase();
+      let friendly = msg;
+      if (
+        lower.includes("quota") ||
+        lower.includes("exhausted") ||
+        lower.includes("retry") ||
+        lower.includes("gemini") ||
+        lower.includes("openrouter") ||
+        lower.includes("429") ||
+        lower.includes("api key") ||
+        lower.includes("ai_unknown_error") ||
+        lower.includes("provider") ||
+        lower.includes("failed")
+      ) {
+        friendly = "Using Desi Digest local nutrition intelligence… We need one quick confirmation to make your report more accurate.";
+      }
+      toast.error(friendly);
     } finally {
       setStatus("ready");
     }

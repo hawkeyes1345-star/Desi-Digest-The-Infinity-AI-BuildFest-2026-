@@ -33,17 +33,77 @@ export type FoodItem = {
 export const BANGLADESHI_FOODS: FoodItem[] = [
   // Staples
   {
-    canonicalName: "Bhat (White Rice)",
-    banglaName: "ভাত",
+    canonicalName: "Bhat (Plain White Rice)",
+    banglaName: "সাদা ভাত",
     banglishName: "bhat",
-    aliases: ["bhat", "rice", "white rice", "ভাত", "সাদা ভাত"],
+    aliases: ["bhat", "rice", "white rice", "সাদা ভাত", "ভাত"],
     category: "staples",
     nutritionRole: "Carbohydrates, Energy",
-    healthNotes: "High glycemic index, can spike blood sugar. Eat in controlled portions, paired with dal and greens.",
-    servingContext: "Main staple for lunch and dinner, eaten with curries.",
-    betterPrep: "Boiled and drained.",
-    worsePrep: "Fried with oil (fried rice) or cooked as rich pilaf.",
-    nutrients: { calories: 130, protein: 2.7, carbs: 28, fat: 0.3, fiber: 0.4 },
+    healthNotes: "Staple energy source. High GI, so pair with fiber (shak) and protein (dal/fish). Sodium/fat are negligible (~0) if cooked plain.",
+    servingContext: "Main staple for lunch/dinner.",
+    betterPrep: "Boiled and water drained.",
+    worsePrep: "Fried with oil.",
+    nutrients: { calories: 130, protein: 2.7, carbs: 28, fat: 0.2, fiber: 0.4, sodium: 1 },
+    glycemicImpact: "high",
+    studentBudgetFriendly: true,
+  },
+  {
+    canonicalName: "Chinigura Rice",
+    banglaName: "চিনিগুঁড়া চাল",
+    banglishName: "chinigura chal",
+    aliases: ["chinigura", "polao rice", "aromatic rice", "চিনিগুঁড়া"],
+    category: "staples",
+    nutritionRole: "Carbohydrates, Aroma",
+    healthNotes: "Aromatic short-grain rice. Often used in Polao/Biryani which adds fat/calories. Plain boiled is similar to white rice but slightly higher GI.",
+    servingContext: "Used for festive dishes like Polao.",
+    betterPrep: "Boiled plain.",
+    worsePrep: "Cooked with ghee/oil (Polao).",
+    nutrients: { calories: 135, protein: 2.5, carbs: 30, fat: 0.3, fiber: 0.5 },
+    glycemicImpact: "high",
+    studentBudgetFriendly: false,
+  },
+  {
+    canonicalName: "Miniket Rice",
+    banglaName: "মিনিকেট চাল",
+    banglishName: "miniket chal",
+    aliases: ["miniket", "minicate", "মিনিকেট"],
+    category: "staples",
+    nutritionRole: "Carbohydrates",
+    healthNotes: "Popular slender white rice. Highly processed, low fiber. Pair with extra vegetables.",
+    servingContext: "Common daily rice.",
+    betterPrep: "Boiled.",
+    worsePrep: "Fried.",
+    nutrients: { calories: 130, protein: 2.6, carbs: 29, fat: 0.2, fiber: 0.3 },
+    glycemicImpact: "high",
+    studentBudgetFriendly: true,
+  },
+  {
+    canonicalName: "Najirshail Rice",
+    banglaName: "নাজিরশাইল চাল",
+    banglishName: "najirshail chal",
+    aliases: ["najirshail", "najirshail", "নাজিরশাইল"],
+    category: "staples",
+    nutritionRole: "Carbohydrates",
+    healthNotes: "Premium long-grain rice. Slightly more nutrients than miniket if less polished. Still high GI.",
+    servingContext: "Common daily rice.",
+    betterPrep: "Boiled.",
+    worsePrep: "Fried.",
+    nutrients: { calories: 128, protein: 2.8, carbs: 28, fat: 0.2, fiber: 0.6 },
+    glycemicImpact: "high",
+    studentBudgetFriendly: true,
+  },
+  {
+    canonicalName: "Kajol Lota Rice",
+    banglaName: "কাজল লতা চাল",
+    banglishName: "kajol lota chal",
+    aliases: ["kajol lota", "কাজল লতা"],
+    category: "staples",
+    nutritionRole: "Carbohydrates",
+    healthNotes: "Medium grain rice variety. Nutrient profile similar to white rice. High GI.",
+    servingContext: "Local rice variety.",
+    betterPrep: "Boiled.",
+    worsePrep: "Fried.",
+    nutrients: { calories: 132, protein: 2.7, carbs: 29, fat: 0.2, fiber: 0.5 },
     glycemicImpact: "high",
     studentBudgetFriendly: true,
   },
@@ -554,7 +614,7 @@ export const BANGLADESHI_FOODS: FoodItem[] = [
     canonicalName: "Milk (Dud)",
     banglaName: "দুধ",
     banglishName: "milk",
-    aliases: ["milk", "dudh", "dud", "cow milk", "দুধ", "গরুর দুধ"],
+    aliases: ["milk", "dudh", "dud", "cow milk", "দুধ", "গরুর দুধ", "gorur dudh", "goru dudh", "gorur dud", "goru dud"],
     category: "dairy_sweets",
     nutritionRole: "Calcium, Protein, Vitamin D, Vitamin B12",
     healthNotes: "Excellent source of calcium for bones. Good for children and pregnant/lactating mothers.",
@@ -678,7 +738,7 @@ const LOCALIZED_FOOD_INFO: Record<string, {
   bangla: { healthNotes: string; nutritionRole: string };
   banglish: { healthNotes: string; nutritionRole: string };
 }> = {
-  "Bhat (White Rice)": {
+  "Bhat (Plain White Rice)": {
     bangla: {
       healthNotes: "গ্লাইসেমিক ইনডেক্স বেশি হওয়ায় দ্রুত রক্তে শর্করা বাড়ে। পরিমিত খাওয়া এবং শাক-সবজি ও ডালের সাথে খাওয়া ভালো।",
       nutritionRole: "শর্করা ও শক্তি"
@@ -686,6 +746,46 @@ const LOCALIZED_FOOD_INFO: Record<string, {
     banglish: {
       healthNotes: "Glycemic index beshi, tai blood sugar badhte pare. Poriman moto green vegetables and dal er sathe khawa bhalo.",
       nutritionRole: "Carbohydrates, Energy"
+    }
+  },
+  "Chinigura Rice": {
+    bangla: {
+      healthNotes: "সুগন্ধি চাল, সাধারণত পোলাও বা বিরিয়ানিতে ব্যবহৃত হয়। এটি শর্করা সমৃদ্ধ এবং উৎসবের খাবারের মূল ভিত্তি।",
+      nutritionRole: "সুগন্ধি শর্করা ও শক্তি"
+    },
+    banglish: {
+      healthNotes: "Aromatic rice, common in Polao/Biryani. Carb rich and used for festive meals.",
+      nutritionRole: "Aromatic Carbs, Energy"
+    }
+  },
+  "Miniket Rice": {
+    bangla: {
+      healthNotes: "জনপ্রিয় চিকন চাল। এটি বেশ পালিশ করা থাকে বলে ফাইবার কম। শাক-সবজির সাথে খেলে ভারসাম্য ঠিক থাকে।",
+      nutritionRole: "শর্করা"
+    },
+    banglish: {
+      healthNotes: "Popular slender rice. Highly polished so lower fiber. Pair with greens for balance.",
+      nutritionRole: "Carbohydrates"
+    }
+  },
+  "Najirshail Rice": {
+    bangla: {
+      healthNotes: "উন্নত মানের লম্বা চাল। এটি মিনিকেটের চেয়ে কিছুটা কম পালিশ করা হতে পারে, তবে তবুও শর্করা বেশি।",
+      nutritionRole: "শর্করা ও শক্তি"
+    },
+    banglish: {
+      healthNotes: "Premium long grain rice. Slightly better than miniket if less polished but still high carbs.",
+      nutritionRole: "Carbohydrates, Energy"
+    }
+  },
+  "Kajol Lota Rice": {
+    bangla: {
+      healthNotes: "মাঝারি দানার দেশি চাল। পুষ্টিগুণ সাধারণ সাদা ভাতের মতোই। পরিমাণ নিয়ন্ত্রণ করে খাওয়া ভালো।",
+      nutritionRole: "শর্করা"
+    },
+    banglish: {
+      healthNotes: "Medium grain local rice. Nutrition similar to plain white rice. Watch your portion.",
+      nutritionRole: "Carbohydrates"
     }
   },
   "Ruti (Roti)": {
@@ -1289,6 +1389,15 @@ export function extractFoodEntities(message: string, language?: "bangla_script" 
       return;
     }
 
+    // Suppress "Beef (Goru)" if milk/dairy is queried and beef isn't explicitly mentioned
+    if (item.canonicalName === "Beef (Goru)") {
+      const hasMilkPhrase = /(gorur?\s+dudh?|cow\s+milk|\bdudh?\b|দুধ|গরুর\s+দুধ)/i.test(normalizedMsg);
+      const hasExplicitBeef = /(beef|gorur?\s+mangsho|cattle\s+meat|গরুর\s+মাংস)/i.test(normalizedMsg);
+      if (hasMilkPhrase && !hasExplicitBeef) {
+        return;
+      }
+    }
+
     matchedCanonicalNames.add(item.canonicalName);
     entities.push({
       canonicalName: item.canonicalName,
@@ -1478,6 +1587,15 @@ export function extractFoodEntityOccurrences(message: string, language?: "bangla
 
   for (const item of BANGLADESHI_FOODS) {
     if (impossibleFoodCheck?.detected && impossibleFoodCheck.food === "dim" && item.canonicalName === "Dim (Egg)") continue;
+
+    // Suppress "Beef (Goru)" if milk/dairy is queried and beef isn't explicitly mentioned
+    if (item.canonicalName === "Beef (Goru)") {
+      const hasMilkPhrase = /(gorur?\s+dudh?|cow\s+milk|\bdudh?\b|দুধ|গরুর\s+দুধ)/i.test(lowerMsg);
+      const hasExplicitBeef = /(beef|gorur?\s+mangsho|cattle\s+meat|গরুর\s+মাংস)/i.test(lowerMsg);
+      if (hasMilkPhrase && !hasExplicitBeef) {
+        continue;
+      }
+    }
 
     for (const alias of item.aliases) {
       const normalizedAlias = alias.toLowerCase();

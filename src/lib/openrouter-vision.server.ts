@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { getOpenRouterApiKey as getEnvOpenRouterApiKey } from "@/lib/env.server";
+import { getOpenRouterApiKey as getEnvOpenRouterApiKey, getOpenRouterVisionModels } from "@/lib/env.server";
 
 const OpenRouterVisionResultSchema = z.object({
   detected: z.boolean(),
@@ -8,38 +8,30 @@ const OpenRouterVisionResultSchema = z.object({
 
 export type OpenRouterVisionResult = z.infer<typeof OpenRouterVisionResultSchema>;
 
-/**
- * Helper to get the OpenRouter API key and run strong server-side validation.
- */
 export function getOpenRouterApiKey(): string {
   return getEnvOpenRouterApiKey();
 }
 
-/**
- * Analyzes an image using OpenRouter's vision capabilities.
- * Designed to act as a resilient fallback for plate analysis.
- * 
- * @param imageBase64 The base64-encoded image data.
- * @param mimeType The image MIME type (e.g. image/jpeg, image/png).
- */
-export async function analyzeImageWithOpenRouterVision(
+async function callOpenRouterVisionApi(
+  apiKey: string,
+  modelName: string,
   imageBase64: string,
-  mimeType: string
-): Promise<{ detected: boolean; foods: Array<{ name: string }>; error?: string }> {
+  mimeType: string,
+  referer: string
+): Promise<string> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 35000);
+
   try {
-    const apiKey = getOpenRouterApiKey();
-    const modelName = process.env.OPENROUTER_VISION_MODEL || "google/gemini-2.5-flash";
-
-    console.info(`[openrouter-vision] calling OpenRouter API with model ${modelName}...`);
-
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${apiKey}`,
-        "HTTP-Referer": "https://project-rae6k.vercel.app",
-        "X-OpenRouter-Title": "Desi Digest",
+        "HTTP-Referer": referer,
+        "X-Title": "Desi Digest",
       },
+      signal: controller.signal,
       body: JSON.stringify({
         model: modelName,
         messages: [
@@ -68,41 +60,87 @@ Do not include markdown fences, backticks, or any other conversational text.`
             ]
           }
         ],
-        response_format: { type: "json_object" }
+        response_format: { type: "json_object" },
+        temperature: 0.2,
+        max_tokens: 1200,
+        reasoning: {
+          effort: "none",
+          exclude: true
+        },
+        provider: {
+          sort: "latency",
+          require_parameters: true
+        }
       })
     });
 
+    clearTimeout(timeoutId);
+
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`[openrouter-vision] HTTP error: ${response.status} - ${errorText}`);
       throw new Error(`OpenRouter API HTTP error: ${response.status}`);
     }
 
     const data = await response.json();
-    const content = data.choices?.[0]?.message?.content;
-    if (!content) {
-      throw new Error("OpenRouter API returned an empty completion content.");
+    const message = data.choices?.[0]?.message;
+    const content = message?.content;
+
+    if (typeof content !== "string" || content.trim() === "") {
+      throw new Error("OpenRouter vision API returned empty content.");
     }
 
-    let cleanContent = content.trim();
-    if (cleanContent.startsWith("```")) {
-      cleanContent = cleanContent
-        .replace(/^```json\s*/i, "")
-        .replace(/```$/, "")
-        .trim();
+    return content.trim();
+  } catch (error: any) {
+    clearTimeout(timeoutId);
+    if (error.name === "AbortError") {
+      throw new Error("OpenRouter vision request timed out.");
+    }
+    throw error;
+  }
+}
+
+export async function analyzeImageWithOpenRouterVision(
+  imageBase64: string,
+  mimeType: string
+): Promise<{ detected: boolean; foods: Array<{ name: string }>; error?: string }> {
+  try {
+    const apiKey = getOpenRouterApiKey();
+    if (!apiKey) {
+      throw new Error("Missing OpenRouter API key. Skipping OpenRouter.");
     }
 
-    const parsed = JSON.parse(cleanContent);
-    const validated = OpenRouterVisionResultSchema.parse(parsed);
+    const models = getOpenRouterVisionModels();
+    const referer = process.env.NODE_ENV === "development" 
+      ? "http://localhost:3000" 
+      : (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://project-rae6k.vercel.app");
 
-    return {
-      detected: validated.detected,
-      foods: validated.foods,
-    };
+    for (const model of models) {
+      try {
+        console.info(`[openrouter-vision] trying model: ${model}`);
+        const content = await callOpenRouterVisionApi(apiKey, model, imageBase64, mimeType, referer);
+
+        let cleanContent = content.trim();
+        if (cleanContent.startsWith("```")) {
+          cleanContent = cleanContent
+            .replace(/^```json\s*/i, "")
+            .replace(/```$/, "")
+            .trim();
+        }
+
+        const parsed = JSON.parse(cleanContent);
+        const validated = OpenRouterVisionResultSchema.parse(parsed);
+
+        return {
+          detected: validated.detected,
+          foods: validated.foods,
+        };
+      } catch (error) {
+        console.error(`[openrouter-vision] model ${model} failed, trying next...`, error);
+      }
+    }
+
+    throw new Error("All OpenRouter vision models failed.");
   } catch (error) {
     console.error("[openrouter-vision] analysis failed:", error);
-    
-    // Return a clean error indicator instead of leaking raw database/provider errors
     return {
       detected: false,
       foods: [],
