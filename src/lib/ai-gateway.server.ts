@@ -10,6 +10,8 @@ import {
 } from "@/lib/gemini-quota.server";
 import { NANUMONI_KNOWLEDGE } from "@/lib/nanumoni-knowledge";
 import { getGeminiApiKey as getEnvGeminiApiKey } from "@/lib/env.server";
+import { routeAiCall } from "@/lib/ai-router.server";
+import { generateOpenRouterText, generateOpenRouterObject } from "@/lib/openrouter-chat.server";
 
 export const CHAT_MODEL_NAME = process.env.GEMINI_CHAT_MODEL || "gemini-2.5-flash";
 type AiPhase = "chat" | "explanation";
@@ -38,22 +40,14 @@ export async function generateChatResponse(input: {
   previousAssistantMessage?: string;
   conversationHistory?: Array<{role: string, text: string}>;
 }): Promise<{ text: string; usedGemini: boolean; fallbackReason?: string }> {
-  const quota = tryConsumeGeminiQuota();
-  if (!quota.allowed) return { text: input.template, usedGemini: false, fallbackReason: quota.reason || "Gemini unavailable" };
+  
+  let formattedHistory = "";
+  if (input.conversationHistory && input.conversationHistory.length > 0) {
+    formattedHistory = "\n\nRecent Conversation History (for context):\n" + 
+      input.conversationHistory.map(msg => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.text}`).join("\n");
+  }
 
-  try {
-    logAiModelUse("chat", CHAT_MODEL_NAME);
-    
-    // Format conversation history for Gemini
-    let formattedHistory = "";
-    if (input.conversationHistory && input.conversationHistory.length > 0) {
-      formattedHistory = "\n\nRecent Conversation History (for context):\n" + 
-        input.conversationHistory.map(msg => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.text}`).join("\n");
-    }
-
-    const result = await generateText({
-      model: createGeminiProvider()(CHAT_MODEL_NAME),
-      system: `You are Nanumoni — a warm, knowledgeable Bangladeshi nutrition helper in the Deshi Digest app.
+  const systemPrompt = `You are Nanumoni — a warm, knowledgeable Bangladeshi nutrition helper in the Deshi Digest app.
 
 CORE IDENTITY:
 - You are a friendly deshi nutrition assistant, NOT a doctor.
@@ -146,32 +140,46 @@ Budget-friendly protein options:
 Best combo: 2 ta dim + 1 cup dal + choto mach = full day protein almost covered.
 
 BANGLADESHI FOOD KNOWLEDGE BASE:
-` + NANUMONI_KNOWLEDGE,
-      messages: [
-        {
-          role: "user",
-          content: [
-            input.userMessage,
-            input.requestedLanguage ? "[Language: " + input.requestedLanguage + "]" : "",
-            input.previousAssistantMessage ? "[Rewrite this previous answer in the requested language: " + input.previousAssistantMessage + "]" : "",
-            formattedHistory,
-            input.userProfile ? "[Profile: " + JSON.stringify(input.userProfile) + "]" : "",
-            input.context && Object.keys(input.context as Record<string, unknown>).length > 0 ? "[Food data: " + JSON.stringify(input.context) + "]" : "",
-            input.template ? "[Reference hints: " + input.template + "]" : "",
-          ].filter(Boolean).join("\n"),
-        },
-      ],
+` + NANUMONI_KNOWLEDGE;
+
+  const userPrompt = [
+    input.userMessage,
+    input.requestedLanguage ? "[Language: " + input.requestedLanguage + "]" : "",
+    input.previousAssistantMessage ? "[Rewrite this previous answer in the requested language: " + input.previousAssistantMessage + "]" : "",
+    formattedHistory,
+    input.userProfile ? "[Profile: " + JSON.stringify(input.userProfile) + "]" : "",
+    input.context && Object.keys(input.context as Record<string, unknown>).length > 0 ? "[Food data: " + JSON.stringify(input.context) + "]" : "",
+    input.template ? "[Reference hints: " + input.template + "]" : "",
+  ].filter(Boolean).join("\n");
+
+  const geminiCall = async () => {
+    logAiModelUse("chat", CHAT_MODEL_NAME);
+    const result = await generateText({
+      model: createGeminiProvider()(CHAT_MODEL_NAME),
+      system: systemPrompt,
+      messages: [{ role: "user", content: userPrompt }],
     });
     const text = result.text?.trim();
-    if (!text) return { text: input.template, usedGemini: false, fallbackReason: "Gemini returned an empty response" };
-    return { text, usedGemini: true };
-  } catch (error) {
-    return {
-      text: input.template,
-      usedGemini: false,
-      fallbackReason: error instanceof Error ? error.message : "Gemini chat failed",
-    };
-  }
+    if (!text) throw new Error("Gemini returned an empty response");
+    return text;
+  };
+
+  const openRouterCall = async () => {
+    logAiModelUse("chat", "openrouter");
+    return await generateOpenRouterText(systemPrompt, userPrompt);
+  };
+
+  const fallbackCall = () => {
+    return input.template;
+  };
+
+  const result = await routeAiCall(geminiCall, openRouterCall, fallbackCall, "chat");
+
+  return {
+    text: result.result,
+    usedGemini: result.provider !== 'fallback',
+    fallbackReason: result.fallbackReason
+  };
 }
 
 
@@ -180,23 +188,7 @@ export async function generatePlateAnalysisInsights(
   nutrition: any,
   userProfile: any
 ): Promise<{ data: AiPlateAnalysisData; usedGemini: boolean; fallbackReason?: string }> {
-  if (isGeminiOnCooldown()) {
-    const localInsights = getLocalPlateInsights(detectedFoods, nutrition, userProfile);
-    return { data: localInsights, usedGemini: false, fallbackReason: "AI_QUOTA_EXCEEDED" };
-  }
-
-  const quota = tryConsumeGeminiQuota();
-  if (!quota.allowed) {
-    const localInsights = getLocalPlateInsights(detectedFoods, nutrition, userProfile);
-    return { data: localInsights, usedGemini: false, fallbackReason: quota.reason || "Gemini unavailable" };
-  }
-
-  try {
-    logAiModelUse("explanation", CHAT_MODEL_NAME);
-    const result = await generateObject({
-      model: createGeminiProvider()(CHAT_MODEL_NAME),
-      schema: AiPlateAnalysisSchema,
-      system: `You are Nanumoni, a senior clinical-style HealthTech AI nutritionist for Deshi Digest (Bangladesh).
+  const systemPrompt = `You are Nanumoni, a senior clinical-style HealthTech AI nutritionist for Deshi Digest (Bangladesh).
 You are analyzing a user's plate of food. We have already calculated the exact calories and macros.
 Do NOT recalculate macros. Your job is ONLY to provide personalized insights, tips, and explanations based on the provided data.
 
@@ -206,36 +198,42 @@ CRITICAL RULES:
 3. Be culturally relevant to Bangladesh/South Asia. Recommend local Desi food examples (e.g., reduce bhat/rice portion, add dal, add local shak/shobji, choose grilled/boiled rui/ilish fish or chicken, swap paratha with roti, reduce ghee/mustard oil, swap mishti doi with unsweetened tok doi). Do NOT suggest Western-only foods like kale salad or quinoa.
 4. All advice must be short, scannable, action-oriented, and specific to the detected foods, avoiding generic filler.
 5. In 'healthExplanation', you MUST write exactly 5 sentences. The sentences must cover: 1-2 sentences of Executive Summary, 1 sentence on Main Nutrition Concern, 1 sentence on Best Improvement, 1 sentence on a Local Healthier Swap, and 1 sentence of Confidence/Accuracy Note.
-6. If you are uncertain, use safe, generic fallback advice.`,
-      prompt: `Analyze this plate and provide insights.
+6. If you are uncertain, use safe, generic fallback advice.`;
+
+  const userPrompt = `Analyze this plate and provide insights.
       
 Detected Foods: ${JSON.stringify(detectedFoods)}
 Calculated Nutrition: ${JSON.stringify(nutrition)}
 User Profile & Goals: ${JSON.stringify(userProfile || {})}
-`,
-    });
+`;
 
-    return { data: result.object, usedGemini: true };
-  } catch (error) {
-    const mapped = detectAndMapAiError(error);
-    if (mapped.isQuotaOrRateLimit) {
-      setGeminiCooldown(30);
-      console.info("[image-analysis] vision estimate quota-limited; using local estimate");
-    } else {
-      console.info("[image-analysis] vision estimate failed; using local estimate");
-    }
-    
-    if (process.env.DEBUG_ANALYSIS === "true") {
-      console.error("[generatePlateAnalysisInsights] Gemini failed:", error);
-    }
-    
-    const localInsights = getLocalPlateInsights(detectedFoods, nutrition, userProfile);
-    return {
-      data: localInsights,
-      usedGemini: false,
-      fallbackReason: mapped.code,
-    };
-  }
+  const geminiCall = async () => {
+    logAiModelUse("explanation", CHAT_MODEL_NAME);
+    const result = await generateObject({
+      model: createGeminiProvider()(CHAT_MODEL_NAME),
+      schema: AiPlateAnalysisSchema,
+      system: systemPrompt,
+      prompt: userPrompt,
+    });
+    return result.object;
+  };
+
+  const openRouterCall = async () => {
+    logAiModelUse("explanation", "openrouter");
+    return await generateOpenRouterObject(AiPlateAnalysisSchema, systemPrompt, userPrompt);
+  };
+
+  const fallbackCall = () => {
+    return getLocalPlateInsights(detectedFoods, nutrition, userProfile);
+  };
+
+  const result = await routeAiCall(geminiCall, openRouterCall, fallbackCall, "insights");
+
+  return {
+    data: result.result,
+    usedGemini: result.provider !== 'fallback',
+    fallbackReason: result.fallbackReason,
+  };
 }
 
 export const GeminiVisionFoodSchema = z.object({
@@ -248,61 +246,32 @@ export type GeminiVisionFoodResult = z.infer<typeof GeminiVisionFoodSchema>;
 export async function analyzeImageWithGeminiVision(
   imageBase64: string,
   mimeType: string
-): Promise<{ detected: boolean; foods: Array<{ name: string }>; error?: string }> {
-  if (isGeminiOnCooldown()) {
-    return { detected: false, foods: [], error: "AI_QUOTA_EXCEEDED" };
-  }
-
-  const quota = tryConsumeGeminiQuota();
-  if (!quota.allowed) {
-    return { detected: false, foods: [], error: quota.reason || "Gemini unavailable" };
-  }
-
-  try {
-    logAiModelUse("explanation", CHAT_MODEL_NAME);
-    const result = await generateObject({
-      model: createGeminiProvider()(CHAT_MODEL_NAME),
-      schema: GeminiVisionFoodSchema,
-      system: `You are Nanumoni, a HealthTech AI assistant for Deshi Digest (Bangladesh).
+): Promise<{ detected: boolean; foods: Array<{ name: string }> }> {
+  logAiModelUse("explanation", CHAT_MODEL_NAME);
+  const result = await generateObject({
+    model: createGeminiProvider()(CHAT_MODEL_NAME),
+    schema: GeminiVisionFoodSchema,
+    system: `You are Nanumoni, a HealthTech AI assistant for Deshi Digest (Bangladesh).
 Your job is to look at the provided image and identify the food items on the plate.
 CRITICAL RULES:
 1. OUTPUT ONLY VALID JSON matching the requested schema.
 2. Favor Bangladeshi/South Asian food names (e.g. "bhat", "rui macher jhol", "shak", "dal") if appropriate.
 3. If no food is clearly visible, set detected to false.`,
-      messages: [
-        {
-          role: "user",
-          content: [
-            { type: "text", text: "What food is on this plate?" },
-            {
-              type: "image",
-              image: Buffer.from(imageBase64, "base64"),
-            },
-          ],
-        },
-      ],
-    });
+    messages: [
+      {
+        role: "user",
+        content: [
+          { type: "text", text: "What food is on this plate?" },
+          {
+            type: "image",
+            image: Buffer.from(imageBase64, "base64"),
+          },
+        ],
+      },
+    ],
+  });
 
-    return { detected: result.object.detected, foods: result.object.foods };
-  } catch (error) {
-    const mapped = detectAndMapAiError(error);
-    if (mapped.isQuotaOrRateLimit) {
-      setGeminiCooldown(30);
-      console.info("[image-analysis] vision estimate quota-limited; using local estimate");
-    } else {
-      console.info("[image-analysis] vision estimate failed; using local estimate");
-    }
-
-    if (process.env.DEBUG_ANALYSIS === "true") {
-      console.error("[analyzeImageWithGeminiVision] Gemini failed:", error);
-    }
-
-    return {
-      detected: false,
-      foods: [],
-      error: mapped.code,
-    };
-  }
+  return { detected: result.object.detected, foods: result.object.foods };
 }
 
 export function getLocalPlateInsights(

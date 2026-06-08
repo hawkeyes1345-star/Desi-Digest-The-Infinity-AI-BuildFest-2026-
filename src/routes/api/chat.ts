@@ -335,7 +335,7 @@ export const Route = createFileRoute("/api/chat")({
         // Post-generation sanitizer — strip ALL technical/provider labels
         assistantText = assistantText
           .replace(/\b(Tony vai|Tony bhai|Tony)\b/gi, "Bujhlam")
-          .replace(/\b(Gemini|gemini|ChatGPT|OpenAI|Claude|GPT-?4|GPT-?3\.?5?)\b/gi, "")
+          .replace(/\b(Gemini|gemini|ChatGPT|OpenAI|Claude|OpenRouter|openrouter|GPT-?4|GPT-?3\.?5?)\b/gi, "")
           .replace(/Template fallback response\.?/gi, "")
           .replace(/\b(API failed|API error|API call|model error)\b/gi, "")
           .replace(/as an AI|I am a language model|I am an AI|as a language model/gi, "")

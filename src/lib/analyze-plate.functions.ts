@@ -8,6 +8,7 @@ import { aggregateNutrition, enrichFoodsWithNutrition, type EnrichedFood } from 
 import { lookupEdamamImageFood } from "@/lib/external-api.server";
 import { analyzeImageWithGeminiVision, generatePlateAnalysisInsights } from "@/lib/ai-gateway.server";
 import { analyzeImageWithOpenRouterVision } from "@/lib/openrouter-vision.server";
+import { routeAiCall } from "@/lib/ai-router.server";
 
 const InputSchema = z
   .object({
@@ -42,7 +43,7 @@ export type PlateAnalysis = {
   nutritionEstimated: boolean;
   nutritionSources: string[];
   nutritionNote: string;
-  modelUsed: "edamam-image-food" | "gemini-vision-fallback" | "manual-entry" | "demo-sample" | "template-fallback";
+  modelUsed: "edamam-image-food" | "gemini-vision-fallback" | "openrouter-vision-fallback" | "manual-entry" | "demo-sample" | "template-fallback";
   fallbackReason?: string;
   detectionUnavailable?: boolean;
   debugMessage?: string;
@@ -224,41 +225,33 @@ export const analyzePlate = createServerFn({ method: "POST" })
           note: "Detected by Edamam; nutrition was calculated by local/USDA lookup.",
         }));
       } else {
-        // Fallback to Gemini Vision
+        // Fallback to Vision AI
         console.info(`[image-analysis] external provider limited; using vision estimate`);
-        gemini = await analyzeImageWithGeminiVision(imageBase64, mimeType!);
-        if (gemini.detected && gemini.foods.length) {
-          modelUsed = "gemini-vision-fallback";
+
+        const geminiCall = () => analyzeImageWithGeminiVision(imageBase64, mimeType!);
+        const openRouterCall = async () => {
+          const res = await analyzeImageWithOpenRouterVision(imageBase64, mimeType!);
+          if (res.error) throw new Error(res.error);
+          return res;
+        };
+        const fallbackCall = () => {
+          return { detected: false, foods: [], fallbackReason: "Image food detection failed." };
+        };
+
+        const visionResult = await routeAiCall(geminiCall, openRouterCall, fallbackCall, "vision");
+
+        if (visionResult.result.detected && visionResult.result.foods.length) {
+          modelUsed = visionResult.provider === 'openrouter' ? "openrouter-vision-fallback" : "gemini-vision-fallback";
           detected = true;
-          detectedFoods = gemini.foods.slice(0, 5).map((food) => ({
+          detectedFoods = visionResult.result.foods.slice(0, 5).map((food) => ({
             name: food.name,
             portion: "1 visible portion",
             confidence: "medium",
-            note: "Detected by Gemini Vision; nutrition was calculated by local/USDA lookup.",
+            note: `Detected by ${visionResult.provider === 'openrouter' ? 'OpenRouter' : 'Gemini'} Vision; nutrition was calculated by local/USDA lookup.`,
           }));
         } else {
-          // Fallback to OpenRouter Vision
-          console.info(`[image-analysis] Gemini Vision fallback failed/limited. Attempting OpenRouter Vision fallback...`);
-          try {
-            const openRouter = await analyzeImageWithOpenRouterVision(imageBase64, mimeType!);
-            if (openRouter.detected && openRouter.foods.length) {
-              modelUsed = "gemini-vision-fallback";
-              detected = true;
-              detectedFoods = openRouter.foods.slice(0, 5).map((food) => ({
-                name: food.name,
-                portion: "1 visible portion",
-                confidence: "medium",
-                note: "Detected by OpenRouter Vision fallback; nutrition was calculated by local/USDA lookup.",
-              }));
-            } else {
-              fallbackReason = openRouter.error || gemini.error || edamam.error || "Image food detection failed.";
-              errorCode = edamam.errorCode || (gemini.error === "AI_QUOTA_EXCEEDED" ? "AI_QUOTA_EXCEEDED" : undefined);
-            }
-          } catch (orErr) {
-            console.error("[image-analysis] OpenRouter fallback errored:", orErr);
-            fallbackReason = gemini.error || edamam.error || "Image food detection failed.";
-            errorCode = edamam.errorCode || (gemini.error === "AI_QUOTA_EXCEEDED" ? "AI_QUOTA_EXCEEDED" : undefined);
-          }
+          fallbackReason = (visionResult.result as any).fallbackReason || visionResult.fallbackReason || "Image food detection failed.";
+          errorCode = visionResult.fallbackReason;
         }
       }
     }
