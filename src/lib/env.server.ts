@@ -130,7 +130,7 @@ export function getOpenRouterTextModels(): string[] {
  */
 export function getOpenRouterVisionModels(): string[] {
   const models = process.env.OPENROUTER_VISION_MODELS;
-  if (!models) return ["google/gemini-2.5-flash", "openrouter/free"];
+  if (!models) return ["google/gemini-2.5-flash-lite", "google/gemini-2.5-flash", "openai/gpt-4o-mini", "qwen/qwen2.5-vl-72b-instruct", "openrouter/free"];
   return models.split(",").map(m => m.trim()).filter(m => m !== "");
 }
 

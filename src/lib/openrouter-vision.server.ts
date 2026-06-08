@@ -12,6 +12,24 @@ export function getOpenRouterApiKey(): string {
   return getEnvOpenRouterApiKey();
 }
 
+const visionModelCooldowns = new Map<string, number>();
+
+function isModelOnCooldown(model: string): boolean {
+  const expiration = visionModelCooldowns.get(model);
+  if (!expiration) return false;
+  if (Date.now() > expiration) {
+    visionModelCooldowns.delete(model);
+    return false;
+  }
+  return true;
+}
+
+function setModelCooldown(model: string, minutes: number) {
+  const expiration = Date.now() + minutes * 60 * 1000;
+  visionModelCooldowns.set(model, expiration);
+  console.info(`[openrouter-vision] model ${model} on cooldown for ${minutes} minutes`);
+}
+
 async function callOpenRouterVisionApi(
   apiKey: string,
   modelName: string,
@@ -63,13 +81,8 @@ Do not include markdown fences, backticks, or any other conversational text.`
         response_format: { type: "json_object" },
         temperature: 0.2,
         max_tokens: 1200,
-        reasoning: {
-          effort: "none",
-          exclude: true
-        },
         provider: {
-          sort: "latency",
-          require_parameters: true
+          sort: "latency"
         }
       })
     });
@@ -77,7 +90,15 @@ Do not include markdown fences, backticks, or any other conversational text.`
     clearTimeout(timeoutId);
 
     if (!response.ok) {
-      throw new Error(`OpenRouter API HTTP error: ${response.status}`);
+      const errorText = await response.text().catch(() => "");
+      console.error("[openrouter-vision] failed", {
+        model: modelName,
+        status: response.status,
+        body: errorText.slice(0, 800)
+      });
+      const err = new Error(`OpenRouter API HTTP error: ${response.status}`);
+      (err as any).status = response.status;
+      throw err;
     }
 
     const data = await response.json();
@@ -114,6 +135,11 @@ export async function analyzeImageWithOpenRouterVision(
       : (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://project-rae6k.vercel.app");
 
     for (const model of models) {
+      if (isModelOnCooldown(model)) {
+        console.info(`[openrouter-vision] skipping model ${model} (on cooldown)`);
+        continue;
+      }
+
       try {
         console.info(`[openrouter-vision] trying model: ${model}`);
         const content = await callOpenRouterVisionApi(apiKey, model, imageBase64, mimeType, referer);
@@ -133,8 +159,19 @@ export async function analyzeImageWithOpenRouterVision(
           detected: validated.detected,
           foods: validated.foods,
         };
-      } catch (error) {
-        console.error(`[openrouter-vision] model ${model} failed, trying next...`, error);
+      } catch (error: any) {
+        console.error(`[openrouter-vision] model ${model} failed, trying next...`, error.message || error);
+        if (error.name === "AbortError" || error.message?.includes("timed out")) {
+          setModelCooldown(model, 10);
+        } else if (error.status) {
+          if (error.status === 404) {
+            setModelCooldown(model, 24 * 60);
+          } else if (error.status === 429) {
+            setModelCooldown(model, 30);
+          } else if (error.status >= 500) {
+            setModelCooldown(model, 5);
+          }
+        }
       }
     }
 
