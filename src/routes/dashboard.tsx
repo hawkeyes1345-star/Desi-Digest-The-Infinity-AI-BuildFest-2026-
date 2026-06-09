@@ -48,6 +48,7 @@ import { getPendingCheckIn, shouldShowSevenDaySummary, type HabitDay } from "@/l
 import { MacroRing } from "@/components/MacroRing";
 import { LogMealDialog } from "@/components/LogMealDialog";
 import { DashboardSkeleton } from "@/components/DashboardSkeleton";
+import { RawFoodBasketBridge } from "@/components/RawFoodBasketBridge";
 import {
   Bar,
   BarChart,
@@ -572,6 +573,11 @@ function Dashboard() {
               {streak === 0 && <li className="text-muted-foreground">Log a meal to start your streak 🌱</li>}
             </ul>
           </div>
+        </section>
+
+        {/* ── Raw Food Basket Bridge ── */}
+        <section>
+           <RawFoodBasketBridge basketId="balanced-deshi" isDemo={demo} />
         </section>
 
         {/* ── Today's meals ── */}
