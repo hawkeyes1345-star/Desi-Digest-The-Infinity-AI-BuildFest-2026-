@@ -22,6 +22,8 @@ import {
 import { Shimmer } from "@/components/ai-elements/shimmer";
 import nanumoniAvatar from "@/assets/nanumoni-avatar.jpg";
 import { toast } from "sonner";
+import { detectFoodShoppingIntent, extractFoodSearchTerm } from "@/lib/food-location-intent";
+import { FoodNearbySearchCard } from "@/components/FoodNearbySearchCard";
 
 export const Route = createFileRoute("/chat/$threadId")({
   beforeLoad: async () => {
@@ -199,7 +201,7 @@ function ChatInner({ threadId, initialMessages }: { threadId: string; initialMes
             </div>
           )}
 
-          {messages.map((m) => {
+          {messages.map((m, idx) => {
             const rawText = m.parts.map((p) => (p.type === "text" ? p.text : "")).join("");
             // Strip any residual technical/debug markers from displayed text
             const text = rawText
@@ -215,13 +217,30 @@ function ChatInner({ threadId, initialMessages }: { threadId: string; initialMes
                 </Message>
               );
             }
+
+            let shoppingCard = null;
+            if (idx > 0 && messages[idx - 1].role === "user") {
+              const prevText = messages[idx - 1].parts.map((p) => (p.type === "text" ? p.text : "")).join("");
+              if (detectFoodShoppingIntent(prevText)) {
+                const term = extractFoodSearchTerm(prevText);
+                shoppingCard = (
+                  <div className="ml-11 mt-2 w-full max-w-[85%]">
+                    <FoodNearbySearchCard searchTerm={term} />
+                  </div>
+                );
+              }
+            }
+
             return (
               <Message key={m.id} from="assistant">
-                <div className="flex w-full gap-3">
-                  <img src={nanumoniAvatar} alt="Nanumoni" width={32} height={32} className="mt-1 h-8 w-8 shrink-0 rounded-full ring-1 ring-border" />
-                  <div className="min-w-0 flex-1">
-                    <MessageResponse>{text}</MessageResponse>
+                <div className="flex w-full flex-col">
+                  <div className="flex w-full gap-3">
+                    <img src={nanumoniAvatar} alt="Nanumoni" width={32} height={32} className="mt-1 h-8 w-8 shrink-0 rounded-full ring-1 ring-border" />
+                    <div className="min-w-0 flex-1">
+                      <MessageResponse>{text}</MessageResponse>
+                    </div>
                   </div>
+                  {shoppingCard}
                 </div>
               </Message>
             );
