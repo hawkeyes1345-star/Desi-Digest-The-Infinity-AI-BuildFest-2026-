@@ -41,7 +41,10 @@ import {
 import { PlateAnalyzer } from "@/components/PlateAnalyzer";
 import { NutritionLabel } from "@/components/NutritionLabel";
 import { SmartHealthNudgePopup } from "@/components/SmartHealthNudgePopup";
+import { NanumoniHabitCheckIn } from "@/components/NanumoniHabitCheckIn";
+import { NanumoniHabitSummary } from "@/components/NanumoniHabitSummary";
 import { DAILY_TARGETS } from "@/lib/nutrition";
+import { getPendingCheckIn, shouldShowSevenDaySummary, type HabitDay } from "@/lib/smart-health-nudge";
 import { MacroRing } from "@/components/MacroRing";
 import { LogMealDialog } from "@/components/LogMealDialog";
 import { DashboardSkeleton } from "@/components/DashboardSkeleton";
@@ -193,6 +196,8 @@ function Dashboard() {
   const demo = isDemoSession();
   const [mounted, setMounted] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [activePopup, setActivePopup] = useState<"none" | "summary" | "checkin" | "nudge">("none");
+  const [pendingDay, setPendingDay] = useState<HabitDay | null>(null);
 
   function handleExport() {
     setIsExporting(true);
@@ -207,6 +212,42 @@ function Dashboard() {
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
+    
+    if (shouldShowSevenDaySummary()) {
+      setActivePopup("summary");
+      return;
+    }
+
+    const checkIn = getPendingCheckIn();
+    if (checkIn) {
+      setPendingDay(checkIn);
+      setActivePopup("checkin");
+      return;
+    }
+
+    setActivePopup("nudge");
+  }, [mounted]);
+
+  const handleSummaryClose = () => {
+    const checkIn = getPendingCheckIn();
+    if (checkIn) {
+      setPendingDay(checkIn);
+      setActivePopup("checkin");
+    } else {
+      setActivePopup("nudge");
+    }
+  };
+
+  const handleCheckInComplete = () => {
+    if (shouldShowSevenDaySummary()) {
+      setActivePopup("summary");
+    } else {
+      setActivePopup("nudge");
+    }
+  };
 
   const profileQ = useQuery({
     queryKey: ["profile"],
@@ -594,21 +635,34 @@ function Dashboard() {
           <section className="rounded-3xl border border-dashed border-spice/30 bg-spice/5 p-5 text-center mt-6">
             <h3 className="font-display text-sm font-semibold text-spice">Judge Demo Mode Controls</h3>
             <p className="text-xs text-muted-foreground mt-1 mb-3">If the Smart Health Nudge is hidden due to cooldown, you can reset it here.</p>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => {
-                localStorage.removeItem("desi-digest:nudge-state:v1");
-                window.location.reload();
-              }}
-            >
-              <Sparkles className="h-4 w-4 mr-1.5 text-spice" /> Show Smart Health Nudge
-            </Button>
+            <div className="flex flex-wrap justify-center gap-2">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => {
+                  localStorage.removeItem("desi-digest:nudge-state:v1");
+                  setActivePopup("nudge");
+                }}
+              >
+                <Sparkles className="h-4 w-4 mr-1.5 text-spice" /> Show Smart Health Nudge
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => {
+                  setActivePopup("summary");
+                }}
+              >
+                <Award className="h-4 w-4 mr-1.5 text-spice" /> Show 7-Day Habit Summary
+              </Button>
+            </div>
           </section>
         )}
       </main>
       
-      {p && <SmartHealthNudgePopup profile={p} recentMeals={Array.isArray(meals) ? meals : []} isDemo={demo} />}
+      {activePopup === "summary" && <NanumoniHabitSummary onClose={handleSummaryClose} />}
+      {activePopup === "checkin" && pendingDay && <NanumoniHabitCheckIn pendingDay={pendingDay} onComplete={handleCheckInComplete} />}
+      {activePopup === "nudge" && p && <SmartHealthNudgePopup profile={p} recentMeals={Array.isArray(meals) ? meals : []} isDemo={demo} />}
     </div>
   );
 }
