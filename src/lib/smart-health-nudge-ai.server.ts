@@ -21,7 +21,9 @@ const NudgeGenerationSchema = z.object({
     suggestion: z.string(),
     benefit: z.string(),
     imageKind: z.enum(["lal-shak", "dal", "water", "egg", "fish", "vegetables", "rice-balance", "generic"])
-  }))
+  })),
+  checkInQuestionBn: z.string(),
+  checkInQuestionEn: z.string(),
 });
 
 export async function generatePersonalizedNudge(
@@ -44,7 +46,7 @@ export async function generatePersonalizedNudge(
 
   // 2. Prepare AI prompt
   const systemPrompt = `You are a highly empathetic and knowledgeable Bangladeshi HealthTech AI Assistant (Nanumoni).
-Your goal is to generate a personalized "Smart Health Nudge" and a 7-day suggested plan for the user based on their recent meal logs and profile.
+Your goal is to generate a personalized "Smart Health Nudge", a 7-day suggested plan, and a check-in question for the next day based on their recent meal logs and profile.
 
 CRITICAL SAFETY RULES:
 - DO NOT diagnose any disease.
@@ -54,6 +56,7 @@ CRITICAL SAFETY RULES:
 - MUST use safe language: "Apnar meal pattern theke mone hocche...", "may help", "can support".
 - The 'disclaimer' field MUST EXACTLY BE: "General nutrition guidance — not medical advice."
 - The 'sevenDayPlan' MUST contain exactly 7 items (one for each day).
+- Provide 'checkInQuestionBn' (Bangla) and 'checkInQuestionEn' (English) asking if they followed today's tip. The question MUST be encouraging and non-shaming. Example: "Dadu bhai, kalke ki lal shak kheyecho?"
 - Output strict JSON only.`;
 
   const userContext = {

@@ -24,6 +24,8 @@ export type SmartHealthNudge = {
   disclaimer: string;
   isDemo?: boolean;
   sevenDayPlan?: SmartHealthNudgePlanItem[];
+  checkInQuestionBn?: string;
+  checkInQuestionEn?: string;
 };
 
 // Simple helper to safely analyze meals
@@ -46,6 +48,8 @@ export function generateSmartNudge(
       reason: "demo-mode",
       disclaimer,
       isDemo: true,
+      checkInQuestionBn: "Dadu bhai, kalke ki vegetables ektu kheyecho?",
+      checkInQuestionEn: "Did you follow yesterday's tip?"
     };
   }
 
@@ -83,7 +87,9 @@ export function generateSmartNudge(
       imageKind: "lal-shak",
       priority: "high",
       reason: "low-fiber",
-      disclaimer
+      disclaimer,
+      checkInQuestionBn: "Dadu bhai, kalke ki lal shak/vegetables kheyecho?",
+      checkInQuestionEn: "Did you add any vegetables yesterday?"
     };
   }
 
@@ -98,7 +104,9 @@ export function generateSmartNudge(
       imageKind: "rice-balance",
       priority: "medium",
       reason: "low-protein-high-cal",
-      disclaimer
+      disclaimer,
+      checkInQuestionBn: "Dadu bhai, kalke rice er sathe ektu protein ba vegetables add korte perecho?",
+      checkInQuestionEn: "Did you balance your rice portion yesterday?"
     };
   }
 
@@ -113,7 +121,9 @@ export function generateSmartNudge(
       imageKind: "water",
       priority: "medium",
       reason: "hydration-reminder",
-      disclaimer
+      disclaimer,
+      checkInQuestionBn: "Dadu bhai, kalke pani intake ektu barate perecho?",
+      checkInQuestionEn: "Did you drink more water yesterday?"
     };
   }
 
@@ -127,7 +137,9 @@ export function generateSmartNudge(
     imageKind: "generic",
     priority: "low",
     reason: "default-nudge",
-    disclaimer
+    disclaimer,
+    checkInQuestionBn: "Dadu bhai, kalke ki balanced plate follow korte perecho?",
+    checkInQuestionEn: "Did you have a balanced plate yesterday?"
   };
 }
 
@@ -264,6 +276,8 @@ export function validateNudgeSafety(nudge: SmartHealthNudge): boolean {
       nudge.benefit,
       nudge.actionLabel,
       nudge.reason,
+      nudge.checkInQuestionBn || "",
+      nudge.checkInQuestionEn || "",
       ...(nudge.sevenDayPlan || []).flatMap(p => [p.title, p.suggestion, p.benefit])
     ].join(" ").toLowerCase();
 
@@ -284,5 +298,152 @@ export function validateNudgeSafety(nudge: SmartHealthNudge): boolean {
     return true;
   } catch (e) {
     return false;
+  }
+}
+
+// ==========================================
+// HABIT LOOP STATE MANAGEMENT
+// ==========================================
+
+export type HabitAnswer = "yes" | "partly" | "no" | "skip";
+
+export type HabitDay = {
+  date: string;
+  nudgeId: string;
+  imageKind: NudgeImageKind;
+  titleBn: string;
+  titleEn: string;
+  checkInQuestionBn: string;
+  checkInQuestionEn: string;
+  answer?: HabitAnswer;
+  answeredAt?: number;
+};
+
+export type HabitState = {
+  activePlanId: string;
+  startedAt: string;
+  currentDay: number;
+  days: HabitDay[];
+  lastPopupDate: string;
+  lastCheckInDate: string;
+  sevenDaySummaryShown?: boolean;
+};
+
+const HABIT_STATE_KEY = "desi-digest:nanumoni-habit-loop:v1";
+
+function getTodayStr(): string {
+  return new Date().toISOString().split("T")[0];
+}
+
+export function getHabitState(): HabitState | null {
+  if (typeof window === "undefined") return null;
+  const stored = localStorage.getItem(HABIT_STATE_KEY);
+  if (!stored) return null;
+  try {
+    return JSON.parse(stored) as HabitState;
+  } catch (e) {
+    return null;
+  }
+}
+
+export function saveHabitState(state: HabitState) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(HABIT_STATE_KEY, JSON.stringify(state));
+}
+
+export function initOrUpdateHabitState(nudge: SmartHealthNudge) {
+  const today = getTodayStr();
+  let state = getHabitState();
+
+  if (!state) {
+    state = {
+      activePlanId: nudge.id,
+      startedAt: today,
+      currentDay: 1,
+      days: [],
+      lastPopupDate: "",
+      lastCheckInDate: "",
+      sevenDaySummaryShown: false,
+    };
+  }
+
+  // If the last popup date was today, we already added today's nudge to the cycle.
+  if (state.lastPopupDate !== today) {
+    state.lastPopupDate = today;
+    
+    // Add today's nudge to days array if it's not already there for today
+    const existingIndex = state.days.findIndex(d => d.date === today);
+    const newDay: HabitDay = {
+      date: today,
+      nudgeId: nudge.id,
+      imageKind: nudge.imageKind,
+      titleBn: nudge.title,
+      titleEn: nudge.title,
+      checkInQuestionBn: nudge.checkInQuestionBn || "Dadu bhai, kalke ki suggestion follow korte perecho?",
+      checkInQuestionEn: nudge.checkInQuestionEn || "Did you follow yesterday's tip?"
+    };
+
+    if (existingIndex >= 0) {
+      // update existing
+      state.days[existingIndex] = { ...state.days[existingIndex], ...newDay };
+    } else {
+      state.days.push(newDay);
+      // Increment currentDay if we added a new distinct day
+      if (state.days.length > 1) {
+         state.currentDay = state.days.length;
+      }
+    }
+  }
+
+  saveHabitState(state);
+}
+
+export function getPendingCheckIn(): HabitDay | null {
+  const state = getHabitState();
+  if (!state || state.days.length === 0) return null;
+
+  const today = getTodayStr();
+
+  // We want to check in on the most recent day that is NOT today, and has NO answer yet.
+  // Generally, that's yesterday (or the last day they saw a popup).
+  const pendingDays = state.days.filter(d => d.date !== today && !d.answer);
+  if (pendingDays.length > 0) {
+    // Return the latest pending day
+    return pendingDays[pendingDays.length - 1];
+  }
+  return null;
+}
+
+export function recordCheckIn(date: string, answer: HabitAnswer) {
+  const state = getHabitState();
+  if (!state) return;
+
+  const dayIndex = state.days.findIndex(d => d.date === date);
+  if (dayIndex >= 0) {
+    state.days[dayIndex].answer = answer;
+    state.days[dayIndex].answeredAt = Date.now();
+    state.lastCheckInDate = getTodayStr();
+    saveHabitState(state);
+  }
+}
+
+export function shouldShowSevenDaySummary(): boolean {
+  const state = getHabitState();
+  if (!state) return false;
+  if (state.sevenDaySummaryShown) return false;
+  
+  // Only show if we have 7 days recorded, AND all days up to the 7th have answers or we are past day 7
+  if (state.days.length >= 7) {
+    // For MVP, just show it if we hit 7 days.
+    return true;
+  }
+  return false;
+}
+
+export function markSevenDaySummaryShown() {
+  const state = getHabitState();
+  if (state) {
+    state.sevenDaySummaryShown = true;
+    saveHabitState(state);
   }
 }

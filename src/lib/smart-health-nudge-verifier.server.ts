@@ -21,7 +21,9 @@ const VerifierSchema = z.object({
       suggestion: z.string(),
       benefit: z.string(),
       imageKind: z.enum(["lal-shak", "dal", "water", "egg", "fish", "vegetables", "rice-balance", "generic"]),
-    })).optional()
+    })).optional(),
+    checkInQuestionBn: z.string().optional(),
+    checkInQuestionEn: z.string().optional()
   }).optional()
 });
 
@@ -33,6 +35,12 @@ export async function verifyNudgePlan3(generatedNudge: SmartHealthNudge, fallbac
   nudgeToVerify.title = sanitizeNudgeText(nudgeToVerify.title);
   nudgeToVerify.message = sanitizeNudgeText(nudgeToVerify.message);
   nudgeToVerify.benefit = sanitizeNudgeText(nudgeToVerify.benefit);
+  if (nudgeToVerify.checkInQuestionBn) {
+    nudgeToVerify.checkInQuestionBn = sanitizeNudgeText(nudgeToVerify.checkInQuestionBn);
+  }
+  if (nudgeToVerify.checkInQuestionEn) {
+    nudgeToVerify.checkInQuestionEn = sanitizeNudgeText(nudgeToVerify.checkInQuestionEn);
+  }
   if (nudgeToVerify.sevenDayPlan) {
     nudgeToVerify.sevenDayPlan = nudgeToVerify.sevenDayPlan.map(p => ({
       ...p,

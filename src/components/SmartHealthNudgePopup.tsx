@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { type SmartHealthNudge, generateSmartNudge, shouldShowNudge, recordNudgeShown, dismissNudge } from "@/lib/smart-health-nudge";
+import { type SmartHealthNudge, generateSmartNudge, shouldShowNudge, recordNudgeShown, dismissNudge, initOrUpdateHabitState } from "@/lib/smart-health-nudge";
 import { getSmartHealthNudgeFn } from "@/lib/smart-health-nudge.functions";
 import { Button } from "@/components/ui/button";
 import { X, Info, Utensils, Droplets, Egg, Fish, ArrowRight, Calendar, Sparkles } from "lucide-react";
@@ -67,6 +67,7 @@ export function SmartHealthNudgePopup({ profile, recentMeals, isDemo = false }: 
   useEffect(() => {
     if (nudge && isVisible) {
       recordNudgeShown(nudge.id);
+      initOrUpdateHabitState(nudge);
     }
   }, [nudge?.id, isVisible]);
 
