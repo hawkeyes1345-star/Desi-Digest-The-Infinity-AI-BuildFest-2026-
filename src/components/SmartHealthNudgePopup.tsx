@@ -10,6 +10,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import nanumoniAvatar from "@/assets/nanumoni-avatar.jpg";
+import { getClientFallbackImage } from "@/lib/client-image-fallback";
 
 interface SmartHealthNudgePopupProps {
   profile: any;
@@ -67,7 +68,10 @@ export function SmartHealthNudgePopup({ profile, recentMeals, isDemo = false }: 
     staleTime: 4 * 60 * 60 * 1000 // 4 hours
   });
 
-  const nudge = aiNudge || localNudge;
+  const rawNudge = aiNudge || localNudge;
+  const nudge = rawNudge 
+    ? { ...rawNudge, imageUrl: rawNudge.imageUrl || getClientFallbackImage(rawNudge.imageKind).url } 
+    : null;
 
   useEffect(() => {
     if (nudge) {

@@ -1853,3 +1853,49 @@ export function detectDetailedNutritionRequest(message: string): boolean {
     text.includes("nutrition fact")
   );
 }
+
+export function estimateNutritionFromText(name: string): { calories: number; protein_g: number; carbs_g: number; fat_g: number; fiber_g: number; sodium_mg: number; isEstimated: boolean } {
+  let calories = 0;
+  let protein_g = 0;
+  let carbs_g = 0;
+  let fat_g = 0;
+  let fiber_g = 0;
+  let sodium_mg = 0;
+  let isEstimated = false;
+
+  if (!name) return { calories, protein_g, carbs_g, fat_g, fiber_g, sodium_mg, isEstimated };
+
+  const text = name.toLowerCase();
+
+  // Fallback estimates for common keywords
+  const ESTIMATES = [
+    { keys: ["beef", "gorur mangsho", "goru mangsho", "goru"], cal: 250, pro: 25, carb: 0, fat: 16, fib: 0 },
+    { keys: ["mutton", "goat", "chagol", "khashi"], cal: 280, pro: 25, carb: 0, fat: 20, fib: 0 },
+    { keys: ["chicken", "murgi"], cal: 200, pro: 24, carb: 0, fat: 11, fib: 0 },
+    { keys: ["dim", "egg", "boiled egg"], cal: 75, pro: 6, carb: 1, fat: 5, fib: 0 },
+    { keys: ["fish", "mach", "maach", "rui", "katla", "hilsa", "ilish", "tuna"], cal: 150, pro: 20, carb: 0, fat: 7, fib: 0 },
+    { keys: ["dal", "masoor dal", "mug dal", "lentils"], cal: 120, pro: 9, carb: 20, fat: 1, fib: 8 },
+    { keys: ["vat", "bhat", "rice", "ভাত", "chal"], cal: 200, pro: 4, carb: 45, fat: 0, fib: 1 },
+    { keys: ["roti", "ruti", "chapati", "রুটি"], cal: 100, pro: 3, carb: 20, fat: 1, fib: 2 },
+    { keys: ["paratha", "porota"], cal: 250, pro: 4, carb: 30, fat: 12, fib: 2 },
+    { keys: ["shak", "lal shak", "palong shak", "pui shak"], cal: 40, pro: 3, carb: 6, fat: 0, fib: 4 },
+    { keys: ["sobji", "vegetables", "bhaji", "vaji", "shobji"], cal: 80, pro: 2, carb: 10, fat: 4, fib: 3 },
+    { keys: ["milk", "dudh", "dud"], cal: 120, pro: 8, carb: 12, fat: 5, fib: 0 },
+    { keys: ["doi", "yogurt", "tok doi"], cal: 100, pro: 10, carb: 5, fat: 4, fib: 0 },
+    { keys: ["oats", "oatmeal"], cal: 150, pro: 5, carb: 27, fat: 3, fib: 4 },
+  ];
+
+  // We iterate over the ESTIMATES, if the full text contains ANY of its keys, we add its nutrition ONCE.
+  for (const est of ESTIMATES) {
+    if (est.keys.some(k => text.includes(k))) {
+      calories += est.cal;
+      protein_g += est.pro;
+      carbs_g += est.carb;
+      fat_g += est.fat;
+      fiber_g += est.fib;
+      isEstimated = true;
+    }
+  }
+
+  return { calories, protein_g, carbs_g, fat_g, fiber_g, sodium_mg, isEstimated };
+}
