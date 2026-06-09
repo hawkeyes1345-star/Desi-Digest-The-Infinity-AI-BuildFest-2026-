@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { type SmartHealthNudge, generateSmartNudge, shouldShowNudge, recordNudgeShown, dismissNudge, initOrUpdateHabitState } from "@/lib/smart-health-nudge";
+import { type SmartHealthNudge, generateSmartNudge, shouldShowNudge, recordNudgeShown, dismissNudge, initOrUpdateHabitState, recordFeedbackCompleted, recordFeedbackRemindLater, recordFeedbackNotUseful, getFeedbackState } from "@/lib/smart-health-nudge";
 import { getSmartHealthNudgeFn } from "@/lib/smart-health-nudge.functions";
 import { Button } from "@/components/ui/button";
 import { X, Info, Utensils, Droplets, Egg, Fish, ArrowRight, Calendar, Sparkles, Globe, Heart, ShieldCheck, ChevronRight, Copy, MessageSquare } from "lucide-react";
@@ -46,6 +46,7 @@ export function SmartHealthNudgePopup({ profile, recentMeals, isDemo = false }: 
   const [isVisible, setIsVisible] = useState(false);
   const [showPlan, setShowPlan] = useState(false);
   const [lang, setLang] = useState<"bn" | "en">("bn");
+  const [isCompletedToday, setIsCompletedToday] = useState(false);
 
   // 1. Instantly show local deterministic nudge
   useEffect(() => {
@@ -67,6 +68,13 @@ export function SmartHealthNudgePopup({ profile, recentMeals, isDemo = false }: 
   });
 
   const nudge = aiNudge || localNudge;
+
+  useEffect(() => {
+    if (nudge) {
+      const state = getFeedbackState();
+      setIsCompletedToday(state.completedNudgeIds.includes(nudge.id));
+    }
+  }, [nudge?.id]);
 
   useEffect(() => {
     if (nudge && isVisible) {
@@ -154,6 +162,24 @@ export function SmartHealthNudgePopup({ profile, recentMeals, isDemo = false }: 
     toast.success(lang === "bn" ? "পরিকল্পনাটি কপি করা হয়েছে! 📋" : "Action plan copied to clipboard! 📋");
   };
 
+  const handleCompletedClick = () => {
+    recordFeedbackCompleted(nudge.id);
+    setIsCompletedToday(true);
+    toast.success(lang === "bn" ? "অসাধারণ! ছোট ছোট সুস্থ পদক্ষেপ বড় পরিবর্তন আনে। 🌱" : "Great! Small healthy steps add up. 🌱");
+  };
+
+  const handleRemindLaterClick = () => {
+    recordFeedbackRemindLater(nudge.id);
+    setIsVisible(false);
+    toast.success(lang === "bn" ? "ঠিক আছে, আপনাকে পরে মনে করিয়ে দেওয়া হবে। ⏳" : "Okay, I'll remind you later. ⏳");
+  };
+
+  const handleNotUsefulClick = () => {
+    recordFeedbackNotUseful(nudge.id);
+    setIsVisible(false);
+    toast.success(lang === "bn" ? "ধন্যবাদ। আমরা আজ এই পরামর্শটি আর দেখাবো না। 🛑" : "Thanks. We'll avoid showing this suggestion today. 🛑");
+  };
+
   const title = lang === "bn" ? nudge.titleBn : nudge.titleEn;
   const message = lang === "bn" ? nudge.messageBn : nudge.messageEn;
   const benefit = lang === "bn" ? nudge.benefitBn : nudge.benefitEn;
@@ -173,8 +199,27 @@ export function SmartHealthNudgePopup({ profile, recentMeals, isDemo = false }: 
         )}
 
         <div className="flex flex-col h-full overflow-y-auto custom-scrollbar pb-6">
-          {/* Top Image Section */}
-          <div className="relative h-64 w-full bg-muted flex items-center justify-center overflow-hidden">
+          {isCompletedToday ? (
+            <div className="p-8 text-center space-y-6 flex flex-col items-center justify-center min-h-[350px]">
+              <div className="h-20 w-20 bg-emerald-500/10 rounded-full flex items-center justify-center text-emerald-600 animate-bounce">
+                <ShieldCheck className="h-12 w-12" />
+              </div>
+              <div className="space-y-3">
+                <h3 className="font-display text-2xl font-bold text-foreground">
+                  {lang === "bn" ? "আজকের নুডজ সম্পন্ন হয়েছে ✅" : "Today’s nudge completed ✅"}
+                </h3>
+                <p className="text-sm text-muted-foreground max-w-sm mx-auto leading-relaxed">
+                  {lang === "bn" ? "অসাধারণ! ছোট ছোট সুস্থ পদক্ষেপ বড় পরিবর্তন আনে। 🌱" : "Great! Small healthy steps add up. Keep it up! 🌿"}
+                </p>
+              </div>
+              <Button onClick={() => setIsVisible(false)} size="lg" className="rounded-2xl px-10 h-12 font-bold shadow-soft">
+                {lang === "bn" ? "বন্ধ করুন" : "Close"}
+              </Button>
+            </div>
+          ) : (
+            <>
+              {/* Top Image Section */}
+              <div className="relative h-64 w-full bg-muted flex items-center justify-center overflow-hidden">
             {nudge.imageUrl ? (
               <img 
                 src={nudge.imageUrl} 
@@ -385,17 +430,34 @@ export function SmartHealthNudgePopup({ profile, recentMeals, isDemo = false }: 
             )}
 
             <div className="flex flex-col gap-3">
-              <Button onClick={handleAction} size="lg" className="w-full h-14 rounded-2xl shadow-warm text-base font-bold group">
-                {actionLabel}
-                <ArrowRight className="ml-2 h-5 w-5 transition-transform group-hover:translate-x-1" />
+              <Button 
+                onClick={handleCompletedClick} 
+                size="lg" 
+                className="w-full h-14 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-warm text-base font-bold flex items-center justify-center gap-2 group"
+              >
+                <ShieldCheck className="h-5 w-5" />
+                {lang === "bn" ? "আমি এটি করেছি" : "I did this"}
               </Button>
               
-              <button 
-                onClick={handleDismiss}
-                className="text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors py-2"
-              >
-                {lang === "bn" ? "আজকের মত থাক" : "Skip for now"}
-              </button>
+              <div className="grid grid-cols-2 gap-3">
+                <Button 
+                  onClick={handleRemindLaterClick} 
+                  variant="outline"
+                  size="default" 
+                  className="rounded-xl h-11 font-semibold text-xs border border-border/80 hover:bg-muted"
+                >
+                  {lang === "bn" ? "পরে মনে করাবেন" : "Remind me later"}
+                </Button>
+
+                <Button 
+                  onClick={handleNotUsefulClick} 
+                  variant="ghost"
+                  size="default" 
+                  className="rounded-xl h-11 font-semibold text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/5"
+                >
+                  {lang === "bn" ? "প্রয়োজনীয় নয়" : "Not useful"}
+                </Button>
+              </div>
             </div>
             
             <div className="space-y-4 border-t border-border/50 pt-4">
@@ -415,7 +477,9 @@ export function SmartHealthNudgePopup({ profile, recentMeals, isDemo = false }: 
               </div>
             </div>
           </div>
-        </div>
+        </>
+      )}
+    </div>
       </DialogContent>
     </Dialog>
   );
