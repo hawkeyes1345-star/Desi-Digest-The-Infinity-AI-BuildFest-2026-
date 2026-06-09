@@ -7,7 +7,14 @@ import { getMyProfile } from "@/lib/profile.functions";
 import { listRecentMeals, type MealLog } from "@/lib/meals.functions";
 import { isDemoSession, demoProfile, getDemoMeals } from "@/lib/demo-session";
 import { Button } from "@/components/ui/button";
-import { Printer, X, ShieldAlert, Award } from "lucide-react";
+import { Printer, X, ShieldAlert, Award, MessageCircle, Clipboard } from "lucide-react";
+import { toast } from "sonner";
+import {
+  calculateSummaryData,
+  buildDoctorShareSummary,
+  buildWhatsAppShareUrl,
+  copyShareSummary,
+} from "@/lib/share-summary";
 import logoMark from "@/assets/logo-mark.png";
 
 export const Route = createFileRoute("/report")({
@@ -139,6 +146,26 @@ function ReportPage() {
     };
   }, [last7DaysMeals]);
 
+  const shareData = useMemo(() => {
+    return calculateSummaryData(profile, allMeals, demo);
+  }, [profile, allMeals, demo]);
+
+  const handleWhatsAppShare = () => {
+    const text = buildDoctorShareSummary(shareData);
+    const url = buildWhatsAppShareUrl(text);
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
+
+  const handleCopySummary = async () => {
+    const text = buildDoctorShareSummary(shareData);
+    const success = await copyShareSummary(text);
+    if (success) {
+      toast.success("Summary copied. You can paste it into WhatsApp or send it to your doctor.");
+    } else {
+      toast.error("Could not copy automatically. Please select and copy the summary manually.");
+    }
+  };
+
   // Auto print on load once data is resolved and ?print=1 is present
   useEffect(() => {
     if (mounted && !profileQ.isLoading && !mealsQ.isLoading && last7DaysMeals.length > 0) {
@@ -168,9 +195,17 @@ function ReportPage() {
         <p className="mt-2 text-sm text-muted-foreground max-w-sm">
           Log or analyze meals first to export a summary.
         </p>
-        <Button onClick={() => window.close()} className="mt-6">
-          Close Window
-        </Button>
+        <div className="mt-6 flex flex-wrap justify-center gap-2">
+          <Button variant="outline" onClick={handleWhatsAppShare} className="shadow-soft">
+            <MessageCircle className="h-4 w-4 mr-1.5 text-[#25D366]" /> Share with Doctor
+          </Button>
+          <Button variant="outline" onClick={handleCopySummary} className="shadow-soft">
+            <Clipboard className="h-4 w-4 mr-1.5" /> Copy Summary
+          </Button>
+          <Button onClick={() => window.close()} className="shadow-soft">
+            Close Window
+          </Button>
+        </div>
       </div>
     );
   }
@@ -186,6 +221,12 @@ function ReportPage() {
         <div className="flex items-center gap-2">
           <Button onClick={() => window.print()} className="shadow-warm bg-primary hover:bg-primary/90 text-white">
             <Printer className="h-4 w-4 mr-1.5" /> Print / Save as PDF
+          </Button>
+          <Button variant="outline" onClick={handleWhatsAppShare} className="shadow-soft">
+            <MessageCircle className="h-4 w-4 mr-1.5 text-[#25D366]" /> Share with Doctor
+          </Button>
+          <Button variant="outline" onClick={handleCopySummary} className="shadow-soft">
+            <Clipboard className="h-4 w-4 mr-1.5" /> Copy Summary
           </Button>
           <Button variant="outline" onClick={() => window.close()}>
             <X className="h-4 w-4 mr-1.5" /> Close

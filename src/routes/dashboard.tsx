@@ -32,6 +32,11 @@ import {
   Printer,
 } from "lucide-react";
 import { toast } from "sonner";
+import {
+  calculateSummaryData,
+  buildDoctorShareSummary,
+  buildWhatsAppShareUrl,
+} from "@/lib/share-summary";
 
 import { PlateAnalyzer } from "@/components/PlateAnalyzer";
 import { NutritionLabel } from "@/components/NutritionLabel";
@@ -319,6 +324,13 @@ function Dashboard() {
   const p = demo ? demoProfile : (profileQ.data ?? null);
   const needsOnboarding = !p || !p.age || !p.goals || !Array.isArray(p.goals) || p.goals.length === 0;
 
+  const handleShare = () => {
+    const shareData = calculateSummaryData(p, meals, demo);
+    const text = buildDoctorShareSummary(shareData);
+    const url = buildWhatsAppShareUrl(text);
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
+
   // ─── Loading state ─────────────────────────────────────────────────────────
   // Show skeleton while initial server data is loading.
   const isLoading = !mounted || profileQ.isLoading || mealsQ.isLoading;
@@ -434,6 +446,15 @@ function Dashboard() {
                 >
                   <Printer className="h-4 w-4 mr-1.5" />
                   {isExporting ? "Generating..." : "Download Doctor-Shareable Summary"}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleShare}
+                  className="shadow-soft"
+                >
+                  <MessageCircle className="h-4 w-4 mr-1.5 text-[#25D366]" />
+                  Share Summary
                 </Button>
                 <Link to="/plan">
                   <Button size="sm" variant="outline">
