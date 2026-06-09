@@ -12,7 +12,9 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "start": "node .output/server/index.mjs",
-    "check:apis": "node scripts/check-api-health.mjs"
+    "check:apis": "node scripts/check-api-health.mjs",
+    "verify:nudge-images": "node scripts/verify-nudge-images.mjs",
+    "download:nudge-images": "node scripts/download-nudge-images.mjs"
   },
   "dependencies": {
     "@ai-sdk/google": "^3.0.79",
