@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { logMeal, type MealLog } from "@/lib/meals.functions";
 import { addDemoMeal } from "@/lib/demo-session";
+import { estimateNutritionFromText } from "@/lib/bangladeshi-food-knowledge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -60,15 +61,35 @@ export function LogMealDialog({ demo = false, onDemoMealLogged }: LogMealDialogP
 
   const mut = useMutation({
     mutationFn: async () => {
+      const parsedName = form.name.trim() || "Meal";
+      let cal = Number(form.calories) || 0;
+      let pro = Number(form.protein_g) || 0;
+      let fat = Number(form.fat_g) || 0;
+      let carb = Number(form.carbs_g) || 0;
+      let fib = Number(form.fiber_g) || 0;
+      let wat = Number(form.water_ml) || 0;
+
+      // If user provided no calories, let's try to estimate
+      if (cal === 0) {
+        const est = estimateNutritionFromText(parsedName);
+        if (est.isEstimated) {
+          cal = est.calories;
+          pro = est.protein_g;
+          fat = est.fat_g;
+          carb = est.carbs_g;
+          fib = est.fiber_g;
+        }
+      }
+
       const meal = {
         meal_type: form.meal_type,
-        name: form.name.trim() || "Meal",
-        calories: Number(form.calories) || 0,
-        protein_g: Number(form.protein_g) || 0,
-        fat_g: Number(form.fat_g) || 0,
-        carbs_g: Number(form.carbs_g) || 0,
-        fiber_g: Number(form.fiber_g) || 0,
-        water_ml: Number(form.water_ml) || 0,
+        name: parsedName,
+        calories: cal,
+        protein_g: pro,
+        fat_g: fat,
+        carbs_g: carb,
+        fiber_g: fib,
+        water_ml: wat,
         source: "manual" as const,
       };
 
