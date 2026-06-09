@@ -753,8 +753,116 @@ export function generateSmartNudge(
   return rawNudge ? enrichNudgeWithPlanAndDetails(rawNudge) : null;
 }
 
+export type NudgeFeedbackState = {
+  date: string;
+  completedNudgeIds: string[];
+  notUsefulNudgeIds: string[];
+  remindedLater: {
+    [nudgeId: string]: number;
+  };
+  completionCount: number;
+};
+
+const FEEDBACK_STATE_KEY = "desi-digest:nudge-feedback:v1";
+
+export function getFeedbackState(): NudgeFeedbackState {
+  if (typeof window === "undefined") {
+    return {
+      date: "",
+      completedNudgeIds: [],
+      notUsefulNudgeIds: [],
+      remindedLater: {},
+      completionCount: 0
+    };
+  }
+  
+  const today = new Date().toISOString().split("T")[0];
+  const stored = localStorage.getItem(FEEDBACK_STATE_KEY);
+  
+  if (stored) {
+    try {
+      const state = JSON.parse(stored) as NudgeFeedbackState;
+      if (state.date === today) {
+        return state;
+      }
+      // Date changed: Reset daily but preserve completionCount
+      return {
+        date: today,
+        completedNudgeIds: [],
+        notUsefulNudgeIds: [],
+        remindedLater: {},
+        completionCount: state.completionCount || 0
+      };
+    } catch (e) {
+      // ignore parse error
+    }
+  }
+  
+  return {
+    date: today,
+    completedNudgeIds: [],
+    notUsefulNudgeIds: [],
+    remindedLater: {},
+    completionCount: 0
+  };
+}
+
+export function saveFeedbackState(state: NudgeFeedbackState) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(FEEDBACK_STATE_KEY, JSON.stringify(state));
+}
+
+export function recordFeedbackCompleted(nudgeId: string) {
+  const state = getFeedbackState();
+  if (!state.completedNudgeIds.includes(nudgeId)) {
+    state.completedNudgeIds.push(nudgeId);
+    state.completionCount += 1;
+    saveFeedbackState(state);
+  }
+}
+
+export function recordFeedbackRemindLater(nudgeId: string) {
+  const state = getFeedbackState();
+  state.remindedLater[nudgeId] = Date.now();
+  saveFeedbackState(state);
+}
+
+export function recordFeedbackNotUseful(nudgeId: string) {
+  const state = getFeedbackState();
+  if (!state.notUsefulNudgeIds.includes(nudgeId)) {
+    state.notUsefulNudgeIds.push(nudgeId);
+    saveFeedbackState(state);
+  }
+}
+
+export function isNudgeRestricted(nudgeId: string): boolean {
+  const state = getFeedbackState();
+  
+  if (state.completedNudgeIds.includes(nudgeId)) {
+    return true;
+  }
+  
+  if (state.notUsefulNudgeIds.includes(nudgeId)) {
+    return true;
+  }
+  
+  const remindedAt = state.remindedLater[nudgeId];
+  if (remindedAt) {
+    const FOUR_HOURS_MS = 4 * 60 * 60 * 1000;
+    if (Date.now() - remindedAt < FOUR_HOURS_MS) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
 export function shouldShowNudge(nudgeId: string): boolean {
   if (typeof window === "undefined") return false;
+  
+  if (isNudgeRestricted(nudgeId)) {
+    return false;
+  }
   
   const key = "desi-digest:nudge-state:v1";
   const stored = localStorage.getItem(key);
