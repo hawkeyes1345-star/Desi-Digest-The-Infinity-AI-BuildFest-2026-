@@ -256,6 +256,9 @@ function ChatLayout() {
             <Link to="/dashboard">
               <Button size="sm" variant="ghost">Dashboard</Button>
             </Link>
+            <Link to="/shops-near-you" className="hidden sm:block">
+              <Button size="sm" variant="ghost">Shops</Button>
+            </Link>
             <PlateAnalyzer
               trigger={
                 <Button size="sm" className="shadow-warm">

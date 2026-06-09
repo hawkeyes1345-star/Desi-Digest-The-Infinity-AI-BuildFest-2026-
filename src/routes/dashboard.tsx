@@ -30,6 +30,7 @@ import {
   AlertTriangle,
   RefreshCw,
   Printer,
+  MapPin,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -418,6 +419,9 @@ function Dashboard() {
             </Link>
             <Link to="/plates">
               <Button variant="ghost" size="sm"><Camera className="h-4 w-4" /> Plates</Button>
+            </Link>
+            <Link to="/shops-near-you">
+              <Button variant="ghost" size="sm"><MapPin className="h-4 w-4" /> Shops</Button>
             </Link>
             <Link to="/chat">
               <Button variant="ghost" size="sm"><MessageCircle className="h-4 w-4" /> Chat</Button>

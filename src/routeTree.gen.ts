@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as ShopsNearYouRouteImport } from './routes/shops-near-you'
 import { Route as ReportRouteImport } from './routes/report'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as PlatesRouteImport } from './routes/plates'
@@ -28,6 +29,11 @@ import { Route as ApiOpenfdaSearchRouteImport } from './routes/api/openfda/searc
 import { Route as ApiNutritionSearchRouteImport } from './routes/api/nutrition/search'
 import { Route as ApiEdamamImageFoodRouteImport } from './routes/api/edamam/image-food'
 
+const ShopsNearYouRoute = ShopsNearYouRouteImport.update({
+  id: '/shops-near-you',
+  path: '/shops-near-you',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ReportRoute = ReportRouteImport.update({
   id: '/report',
   path: '/report',
@@ -130,6 +136,7 @@ export interface FileRoutesByFullPath {
   '/plates': typeof PlatesRoute
   '/profile': typeof ProfileRoute
   '/report': typeof ReportRoute
+  '/shops-near-you': typeof ShopsNearYouRoute
   '/api/chat': typeof ApiChatRoute
   '/chat/$threadId': typeof ChatThreadIdRoute
   '/chat/': typeof ChatIndexRoute
@@ -149,6 +156,7 @@ export interface FileRoutesByTo {
   '/plates': typeof PlatesRoute
   '/profile': typeof ProfileRoute
   '/report': typeof ReportRoute
+  '/shops-near-you': typeof ShopsNearYouRoute
   '/api/chat': typeof ApiChatRoute
   '/chat/$threadId': typeof ChatThreadIdRoute
   '/chat': typeof ChatIndexRoute
@@ -170,6 +178,7 @@ export interface FileRoutesById {
   '/plates': typeof PlatesRoute
   '/profile': typeof ProfileRoute
   '/report': typeof ReportRoute
+  '/shops-near-you': typeof ShopsNearYouRoute
   '/api/chat': typeof ApiChatRoute
   '/chat/$threadId': typeof ChatThreadIdRoute
   '/chat/': typeof ChatIndexRoute
@@ -192,6 +201,7 @@ export interface FileRouteTypes {
     | '/plates'
     | '/profile'
     | '/report'
+    | '/shops-near-you'
     | '/api/chat'
     | '/chat/$threadId'
     | '/chat/'
@@ -211,6 +221,7 @@ export interface FileRouteTypes {
     | '/plates'
     | '/profile'
     | '/report'
+    | '/shops-near-you'
     | '/api/chat'
     | '/chat/$threadId'
     | '/chat'
@@ -231,6 +242,7 @@ export interface FileRouteTypes {
     | '/plates'
     | '/profile'
     | '/report'
+    | '/shops-near-you'
     | '/api/chat'
     | '/chat/$threadId'
     | '/chat/'
@@ -252,6 +264,7 @@ export interface RootRouteChildren {
   PlatesRoute: typeof PlatesRoute
   ProfileRoute: typeof ProfileRoute
   ReportRoute: typeof ReportRoute
+  ShopsNearYouRoute: typeof ShopsNearYouRoute
   ApiChatRoute: typeof ApiChatRoute
   ApiEdamamImageFoodRoute: typeof ApiEdamamImageFoodRoute
   ApiNutritionSearchRoute: typeof ApiNutritionSearchRoute
@@ -262,6 +275,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/shops-near-you': {
+      id: '/shops-near-you'
+      path: '/shops-near-you'
+      fullPath: '/shops-near-you'
+      preLoaderRoute: typeof ShopsNearYouRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/report': {
       id: '/report'
       path: '/report'
@@ -414,6 +434,7 @@ const rootRouteChildren: RootRouteChildren = {
   PlatesRoute: PlatesRoute,
   ProfileRoute: ProfileRoute,
   ReportRoute: ReportRoute,
+  ShopsNearYouRoute: ShopsNearYouRoute,
   ApiChatRoute: ApiChatRoute,
   ApiEdamamImageFoodRoute: ApiEdamamImageFoodRoute,
   ApiNutritionSearchRoute: ApiNutritionSearchRoute,

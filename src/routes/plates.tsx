@@ -19,6 +19,7 @@ import {
   RefreshCw,
   Utensils,
   Printer,
+  MapPin,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -304,6 +305,11 @@ function PlatesPage() {
             <Link to="/plan">
               <Button variant="ghost" size="sm">
                 <Sparkles className="h-4 w-4" /> Plan
+              </Button>
+            </Link>
+            <Link to="/shops-near-you">
+              <Button variant="ghost" size="sm">
+                <MapPin className="h-4 w-4" /> Shops
               </Button>
             </Link>
             <Link to="/chat">
