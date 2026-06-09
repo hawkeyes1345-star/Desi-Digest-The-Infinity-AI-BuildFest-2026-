@@ -108,7 +108,7 @@ export function buildPlan(profile: Profile | null): NutritionPlan {
   );
 
   return {
-    nanumoni_opener: "Here is a database-built Deshi meal plan from your profile. Gemini was not used for nutrition lookup or calculations.",
+    nanumoni_opener: "Here is a database-built Deshi meal plan from your profile. Local food datasets were used for nutrition lookup and calculations.",
     daily_targets: { calories: targetCalories, protein_g: proteinTarget, fiber_g: 25, water_ml: 2200 },
     meals: [breakfast, lunch, dinner, snack],
     weekly_focus: diabetes
@@ -129,7 +129,7 @@ export function buildPlan(profile: Profile | null): NutritionPlan {
       "Selected foods from the local Desi food dataset.",
       "Summed calories and macros from stored nutrition values.",
       "Applied goal rules for diabetes, sodium, weight, muscle, and budget.",
-      "Used template explanations so the plan works even when Gemini quota is unavailable.",
+      "Used template explanations so the plan works even when AI analysis is temporarily busy.",
     ],
   };
 }

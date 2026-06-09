@@ -51,7 +51,7 @@ type Props = {
 };
 
 const LOADING_STEPS = [
-  "Preparing your Desi Digest nutrition report…",
+  "Preparing your Desi Digest nutrition summary…",
   "Using Desi Digest local nutrition intelligence…",
   "Scanning visible food items...",
   "Estimating portions...",
@@ -320,7 +320,7 @@ export function PlateAnalyzer({ trigger, userContext }: Props) {
             />
             <div className="min-w-0">
               <DialogTitle className="font-display text-lg">
-                Nutrition Intelligence Report
+                Nutrition Intelligence Summary
               </DialogTitle>
               <DialogDescription className="text-xs">
                 Clinical-style nutrition estimate based on visible food items, portion cues, and nutrition database cross-checks.
@@ -459,7 +459,7 @@ export function PlateAnalyzer({ trigger, userContext }: Props) {
                 className="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               />
               <Button onClick={() => setConfirmedItems(true)} className="w-full shadow-warm" size="lg">
-                Confirm & View Report
+                Confirm & View Summary
               </Button>
             </div>
           )}

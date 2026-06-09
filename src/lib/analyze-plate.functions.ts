@@ -372,7 +372,7 @@ export const analyzePlate = createServerFn({ method: "POST" })
       substitutions: ai.substitutions,
       portionAdjustment: ai.portionAdjustment,
       budgetAlternatives: ai.budgetAlternatives,
-      sources: ["Edamam", ...nutritionSources, ...(aiResult.usedGemini ? ["Gemini AI"] : [])],
+      sources: ["Edamam", ...nutritionSources, ...(aiResult.usedGemini ? ["AI Analysis"] : [])],
       nutritionEstimated: true,
       nutritionSources,
       nutritionNote,

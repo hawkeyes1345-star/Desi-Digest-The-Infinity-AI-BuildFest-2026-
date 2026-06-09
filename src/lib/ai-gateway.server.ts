@@ -157,7 +157,7 @@ BANGLADESHI FOOD KNOWLEDGE BASE:
       messages: [{ role: "user", content: userPrompt }],
     });
     const text = result.text?.trim();
-    if (!text) throw new Error("Gemini returned an empty response");
+    if (!text) throw new Error("AI assistant returned an empty response");
     return text;
   };
 
@@ -169,7 +169,7 @@ BANGLADESHI FOOD KNOWLEDGE BASE:
       messages: [{ role: "user", content: userPrompt }],
     });
     const text = result.text?.trim();
-    if (!text) throw new Error("Gemini returned an empty response");
+    if (!text) throw new Error("AI assistant returned an empty response");
     return text;
   };
 

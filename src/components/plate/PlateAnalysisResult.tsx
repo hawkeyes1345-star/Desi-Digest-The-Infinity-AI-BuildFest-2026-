@@ -346,7 +346,7 @@ export function PlateAnalysisResult({
         )}
         <div className="flex flex-col gap-2">
           <h3 className="font-display text-lg font-bold tracking-tight text-foreground">
-            Nutrition Intelligence Report
+            Nutrition Intelligence Summary
           </h3>
           <p className="text-xs text-muted-foreground leading-relaxed">
             Clinical-style nutrition estimate based on visible food items, portion cues, and nutrition database cross-checks.
@@ -509,7 +509,7 @@ export function PlateAnalysisResult({
         </div>
 
         <div className="rounded-lg bg-background/50 border border-border/40 p-3 text-xs leading-relaxed text-foreground/90 space-y-2">
-          <p><strong>Nutrition Scan Report Summary:</strong> {analysis.healthExplanation}</p>
+          <p><strong>Nutrition Scan Summary:</strong> {analysis.healthExplanation}</p>
           {analysis.hygieneNotes && <p><strong>Freshness Note:</strong> {analysis.hygieneNotes}</p>}
         </div>
       </div>

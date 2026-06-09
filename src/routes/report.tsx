@@ -182,7 +182,7 @@ function ReportPage() {
   if (!mounted || profileQ.isLoading || mealsQ.isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background p-4 text-sm text-muted-foreground">
-        Generating summary report...
+        Generating nutrition summary...
       </div>
     );
   }
@@ -197,7 +197,7 @@ function ReportPage() {
         </p>
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <Button variant="outline" onClick={handleWhatsAppShare} className="shadow-soft">
-            <MessageCircle className="h-4 w-4 mr-1.5 text-[#25D366]" /> Share with Doctor
+            <MessageCircle className="h-4 w-4 mr-1.5 text-[#25D366]" /> Share Summary
           </Button>
           <Button variant="outline" onClick={handleCopySummary} className="shadow-soft">
             <Clipboard className="h-4 w-4 mr-1.5" /> Copy Summary
@@ -223,7 +223,7 @@ function ReportPage() {
             <Printer className="h-4 w-4 mr-1.5" /> Print / Save as PDF
           </Button>
           <Button variant="outline" onClick={handleWhatsAppShare} className="shadow-soft">
-            <MessageCircle className="h-4 w-4 mr-1.5 text-[#25D366]" /> Share with Doctor
+            <MessageCircle className="h-4 w-4 mr-1.5 text-[#25D366]" /> Share Summary
           </Button>
           <Button variant="outline" onClick={handleCopySummary} className="shadow-soft">
             <Clipboard className="h-4 w-4 mr-1.5" /> Copy Summary

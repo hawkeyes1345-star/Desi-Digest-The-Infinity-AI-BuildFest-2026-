@@ -195,7 +195,7 @@ function Dashboard() {
 
   function handleExport() {
     setIsExporting(true);
-    toast.info("Preparing doctor-shareable report...", { duration: 2000 });
+    toast.info("Preparing doctor-shareable summary...", { duration: 2000 });
     setTimeout(() => {
       window.open("/report?print=1", "_blank");
       setIsExporting(false);
