@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { type SmartHealthNudge, generateSmartNudge, shouldShowNudge, recordNudgeShown, dismissNudge, initOrUpdateHabitState } from "@/lib/smart-health-nudge";
 import { getSmartHealthNudgeFn } from "@/lib/smart-health-nudge.functions";
 import { Button } from "@/components/ui/button";
-import { X, Info, Utensils, Droplets, Egg, Fish, ArrowRight, Calendar, Sparkles, Globe, Heart, ShieldCheck, ChevronRight } from "lucide-react";
+import { X, Info, Utensils, Droplets, Egg, Fish, ArrowRight, Calendar, Sparkles, Globe, Heart, ShieldCheck, ChevronRight, Copy, MessageSquare } from "lucide-react";
 import { type MealLog } from "@/lib/meals.functions";
 import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
@@ -89,6 +89,69 @@ export function SmartHealthNudgePopup({ profile, recentMeals, isDemo = false }: 
     setIsVisible(false);
     dismissNudge(nudge.id);
     toast.success(lang === "bn" ? "দারুণ! আপনার পরবর্তী খাবারের সাথে এটি যোগ করার চেষ্টা করুন। 🌿" : "Great! Try adding this to your next meal. 🌿");
+  };
+
+  const getShareableText = () => {
+    const mainNudgeText = lang === "bn" ? nudge.messageBn : nudge.messageEn;
+    const habitText = lang === "bn" ? nudge.exerciseSuggestionBn : nudge.exerciseSuggestionEn;
+    const checkInText = lang === "bn" ? nudge.checkInQuestionBn : nudge.checkInQuestionEn;
+    
+    let text = `Desi Digest — Smart Health Nudge Action Plan\n\n`;
+    text += `Main nudge:\n${mainNudgeText}\n\n`;
+    
+    if (nudge.sevenDayPlan && nudge.sevenDayPlan.length > 0) {
+      text += `7-day plan:\n`;
+      nudge.sevenDayPlan.forEach(day => {
+        const dayTitle = lang === "bn" ? day.titleBn : day.titleEn;
+        const daySug = lang === "bn" ? day.suggestionBn : day.suggestionEn;
+        text += `Day ${day.day}: ${dayTitle} - ${daySug}\n`;
+      });
+      text += `\n`;
+    }
+    
+    if (habitText) {
+      text += `Habit:\n${habitText}\n\n`;
+    }
+    
+    if (checkInText) {
+      text += `Tomorrow check-in:\n${checkInText}\n\n`;
+    }
+    
+    text += `General nutrition guidance — not medical advice.`;
+    
+    return encodeURIComponent(text);
+  };
+
+  const handleCopyPlan = () => {
+    const mainNudgeText = lang === "bn" ? nudge.messageBn : nudge.messageEn;
+    const habitText = lang === "bn" ? nudge.exerciseSuggestionBn : nudge.exerciseSuggestionEn;
+    const checkInText = lang === "bn" ? nudge.checkInQuestionBn : nudge.checkInQuestionEn;
+    
+    let text = `Desi Digest — Smart Health Nudge Action Plan\n\n`;
+    text += `Main nudge:\n${mainNudgeText}\n\n`;
+    
+    if (nudge.sevenDayPlan && nudge.sevenDayPlan.length > 0) {
+      text += `7-day plan:\n`;
+      nudge.sevenDayPlan.forEach(day => {
+        const dayTitle = lang === "bn" ? day.titleBn : day.titleEn;
+        const daySug = lang === "bn" ? day.suggestionBn : day.suggestionEn;
+        text += `Day ${day.day}: ${dayTitle} - ${daySug}\n`;
+      });
+      text += `\n`;
+    }
+    
+    if (habitText) {
+      text += `Habit:\n${habitText}\n\n`;
+    }
+    
+    if (checkInText) {
+      text += `Tomorrow check-in:\n${checkInText}\n\n`;
+    }
+    
+    text += `General nutrition guidance — not medical advice.`;
+    
+    navigator.clipboard.writeText(text);
+    toast.success(lang === "bn" ? "পরিকল্পনাটি কপি করা হয়েছে! 📋" : "Action plan copied to clipboard! 📋");
   };
 
   const title = lang === "bn" ? nudge.titleBn : nudge.titleEn;
@@ -205,7 +268,7 @@ export function SmartHealthNudgePopup({ profile, recentMeals, isDemo = false }: 
               )}
             </div>
 
-            {exercise && (
+            {!showPlan && exercise && (
                <div className="flex items-center gap-3 rounded-2xl border border-sage/30 bg-sage/5 p-4 shadow-sm transition-all hover:shadow-md">
                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-sage/20 text-sage">
                     <Droplets className="h-5 w-5" />
@@ -223,30 +286,99 @@ export function SmartHealthNudgePopup({ profile, recentMeals, isDemo = false }: 
                   onClick={() => setShowPlan(!showPlan)}
                   className="w-full flex items-center justify-between p-4 text-sm font-bold text-foreground hover:bg-background/50 transition-all"
                 >
-                  <span className="flex items-center gap-2"><Calendar className="h-5 w-5 text-primary" /> {lang === "bn" ? "৭ দিনের স্বাস্থ্য পরিকল্পনা দেখুন" : "View 7-Day Health Plan"}</span>
+                  <span className="flex items-center gap-2">
+                    <Calendar className="h-5 w-5 text-primary" /> 
+                    {lang === "bn" ? "৭ দিনের অ্যাকশন প্ল্যান দেখুন" : "View 7-Day Action Plan"}
+                  </span>
                   <ChevronRight className={cn("h-5 w-5 transition-transform duration-300", showPlan && "rotate-90")} />
                 </button>
                 {showPlan && (
                   <div className="px-4 pb-4 space-y-4 animate-in slide-in-from-top-2 duration-300">
-                    {nudge.sevenDayPlan.map((day, idx) => (
-                      <div key={idx} className="flex gap-4 p-3 rounded-2xl hover:bg-background/50 transition-colors border border-transparent hover:border-border/40">
-                        <div className="flex shrink-0 items-center justify-center h-12 w-12 rounded-xl bg-background shadow-soft border border-border/40 overflow-hidden">
-                           {day.imageUrl ? (
-                              <img src={day.imageUrl} alt={lang === "bn" ? day.titleBn : day.titleEn} className="object-cover w-full h-full" />
-                            ) : (
-                              PLAN_FALLBACK_ICONS[day.imageKind] || PLAN_FALLBACK_ICONS.generic
-                            )}
-                        </div>
-                        <div className="flex-1 space-y-1">
-                          <div className="flex justify-between items-center">
-                            <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Day {day.day}</p>
-                            <span className="text-[9px] font-bold text-sage bg-sage/10 px-1.5 rounded uppercase">Habit</span>
+                    
+                    {nudge.isDemo && (
+                      <div className="bg-amber-500/10 text-amber-600 dark:text-amber-500 rounded-2xl p-3 border border-amber-500/20 text-xs font-bold text-center">
+                        ⚠️ Sample demo data only
+                      </div>
+                    )}
+
+                    <div className="bg-primary/5 rounded-2xl p-4 border border-primary/10">
+                      <p className="text-xs font-bold text-primary uppercase tracking-wider mb-1">
+                        {lang === "bn" ? "মূল উদ্দেশ্য" : "Main Nudge"}
+                      </p>
+                      <p className="text-xs text-foreground/80 leading-relaxed font-medium">
+                        {message}
+                      </p>
+                    </div>
+
+                    <div className="space-y-3">
+                      <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest pl-1">
+                        {lang === "bn" ? "৭ দিনের অ্যাকশন প্ল্যান" : "7-Day Action Plan"}
+                      </p>
+                      {nudge.sevenDayPlan.map((day, idx) => (
+                        <div key={idx} className="flex gap-4 p-3 rounded-2xl bg-card border border-border/40 hover:bg-background/50 transition-colors">
+                          <div className="flex shrink-0 items-center justify-center h-10 w-10 rounded-xl bg-background border border-border/40 overflow-hidden">
+                             {day.imageUrl ? (
+                                <img src={day.imageUrl} alt={lang === "bn" ? day.titleBn : day.titleEn} className="object-cover w-full h-full" />
+                               ) : (
+                                 PLAN_FALLBACK_ICONS[day.imageKind] || PLAN_FALLBACK_ICONS.generic
+                               )}
                           </div>
-                          <p className="text-sm font-bold leading-tight">{lang === "bn" ? day.titleBn : day.titleEn}</p>
-                          <p className="text-xs text-muted-foreground leading-snug">{lang === "bn" ? day.suggestionBn : day.suggestionEn}</p>
+                          <div className="flex-1 space-y-1">
+                            <div className="flex justify-between items-center">
+                              <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Day {day.day}</p>
+                              <span className="text-[9px] font-bold text-sage bg-sage/10 px-1.5 rounded uppercase">Habit</span>
+                            </div>
+                            <p className="text-xs font-bold leading-tight text-foreground">{lang === "bn" ? day.titleBn : day.titleEn}</p>
+                            <p className="text-[11px] text-muted-foreground leading-snug">{lang === "bn" ? day.suggestionBn : day.suggestionEn}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {exercise && (
+                      <div className="flex items-center gap-3 rounded-2xl border border-sage/30 bg-sage/5 p-3.5 shadow-sm">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-sage/20 text-sage">
+                           <Droplets className="h-4 w-4" />
+                        </div>
+                        <div className="flex-1">
+                           <p className="text-[9px] font-bold uppercase tracking-widest text-sage/80">Daily Activity Tip</p>
+                           <p className="text-xs font-semibold text-foreground leading-tight">{exercise}</p>
                         </div>
                       </div>
-                    ))}
+                    )}
+
+                    {(nudge.checkInQuestionBn || nudge.checkInQuestionEn) && (
+                      <div className="bg-muted/50 rounded-2xl p-3.5 border border-border/50">
+                        <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest mb-1">
+                          {lang === "bn" ? "আগামীকালের চেক-ইন প্রশ্ন" : "Tomorrow's Check-in Question"}
+                        </p>
+                        <p className="text-xs font-medium text-foreground/80 leading-snug italic">
+                          "{lang === "bn" ? nudge.checkInQuestionBn : nudge.checkInQuestionEn}"
+                        </p>
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-2 gap-3 pt-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={handleCopyPlan}
+                        className="rounded-xl h-10 font-semibold text-xs flex items-center justify-center gap-2 border border-border/80 hover:bg-muted"
+                      >
+                        <Copy className="h-3.5 w-3.5" />
+                        {lang === "bn" ? "প্ল্যান কপি করুন" : "Copy Plan"}
+                      </Button>
+                      <a 
+                        href={`https://wa.me/?text=${getShareableText()}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center justify-center gap-2 rounded-xl h-10 px-3 py-2 text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-700 transition-colors shadow-sm"
+                      >
+                        <MessageSquare className="h-3.5 w-3.5" />
+                        {lang === "bn" ? "হোয়াটসঅ্যাপে শেয়ার" : "WhatsApp Share"}
+                      </a>
+                    </div>
+
                   </div>
                 )}
               </div>
