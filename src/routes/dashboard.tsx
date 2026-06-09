@@ -40,6 +40,7 @@ import {
 
 import { PlateAnalyzer } from "@/components/PlateAnalyzer";
 import { NutritionLabel } from "@/components/NutritionLabel";
+import { SmartHealthNudgePopup } from "@/components/SmartHealthNudgePopup";
 import { DAILY_TARGETS } from "@/lib/nutrition";
 import { MacroRing } from "@/components/MacroRing";
 import { LogMealDialog } from "@/components/LogMealDialog";
@@ -588,7 +589,26 @@ function Dashboard() {
             </ul>
           )}
         </section>
+
+        {demo && (
+          <section className="rounded-3xl border border-dashed border-spice/30 bg-spice/5 p-5 text-center mt-6">
+            <h3 className="font-display text-sm font-semibold text-spice">Judge Demo Mode Controls</h3>
+            <p className="text-xs text-muted-foreground mt-1 mb-3">If the Smart Health Nudge is hidden due to cooldown, you can reset it here.</p>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => {
+                localStorage.removeItem("desi-digest:nudge-state:v1");
+                window.location.reload();
+              }}
+            >
+              <Sparkles className="h-4 w-4 mr-1.5 text-spice" /> Show Smart Health Nudge
+            </Button>
+          </section>
+        )}
       </main>
+      
+      {p && <SmartHealthNudgePopup profile={p} recentMeals={Array.isArray(meals) ? meals : []} isDemo={demo} />}
     </div>
   );
 }
