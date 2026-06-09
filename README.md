@@ -1,193 +1,88 @@
 # Desi Digest
 
-**Desi Digest** is a culturally intelligent HealthTech web app for South Asian and Bangladeshi food nutrition tracking. It helps users analyze local meals, estimate calories and macros, track meal history, and understand nutrition risks through a safer, more visual experience.
+**Desi Digest** is a culturally intelligent HealthTech web app built for South Asian and Bangladeshi food nutrition tracking. We noticed that most nutrition tools are heavily biased toward Western diets and packaged foods, leaving our users guessing the nutritional value of *bhat, dal, mach, shak,* and *vorta*. 
 
-The app is built around **Nanumoni**, a warm AI nutrition companion designed for everyday Desi meals like bhat, dal, mach, shak, ruti, bhorta, curry, and seasonal foods.
+Desi Digest solves this by offering a deeply familiar, practical, and highly visual experience, powered by **Nanumoni**—our warm, AI-driven nutrition companion.
 
-## Problem Statement
+---
 
-Most nutrition tools are optimized for Western food databases, packaged foods, and generic meal plans. That leaves many Bangladeshi and South Asian users with poor matches for local dishes, unclear portion estimates, and advice that does not reflect cultural food habits, budgets, family meals, or common health goals.
+## 🌟 What We've Built (Key Features)
 
-Desi Digest aims to make nutrition tracking more familiar, practical, and safer by combining local-food-aware analysis, visual meal logging, profile-aware targets, and clear disclaimers around health guidance.
+We’ve packed Desi Digest with features designed specifically for the South Asian lifestyle, balancing cutting-edge AI with strict health-safety guardrails:
 
-## Key Features
+*   **Culturally Aware Nutrition Tracking:** A localized database and parser that understands Banglish (e.g., estimating macros accurately for a typed meal like "gorur mangsho dim vat").
+*   **Photo-Based Plate Analyzer:** Snap a picture of your plate, and Nanumoni will estimate the ingredients, portion sizes, and give you a health score along with actionable feedback.
+*   **Smart Health Nudges:** Highly personalized, culturally relevant daily nudges (available in both Bangla and English). The system detects missing fiber, low hydration, or imbalanced rice portions from your logs and offers friendly, non-medical advice.
+*   **Raw Food Basket Bridge:** Turn your nutrition advice directly into a practical shopping list for your local *kacha bazar*. It's a smart, zero-checkout bridge to help you gather healthy ingredients.
+*   **Shops Near You (Local Discovery):** A privacy-first local discovery map that connects you to nearby public markets, wholesale *arots*, and grocery stores using Google Maps, helping you source fresh, healthy food.
+*   **Nanumoni AI Chat:** A conversational assistant that explains nutrition, retrieves your meal data, and offers healthy recipe ideas without ever making unsafe medical claims.
+*   **Dashboard & Progress Tracking:** Beautiful macro rings (Calories, Protein, Fiber, Water), daily streaks, and recent meal histories.
+*   **Shareable PDF Doctor Reports:** Instantly generate and export your 7-day nutrition summary as a PDF, or share a quick text summary directly via WhatsApp with your doctor or family.
+*   **Judge Demo Mode:** A seamless, offline-safe demo experience that allows users to test the app's full capabilities without needing a database login or API keys.
 
-- **Culturally aware nutrition tracking** for Bangladeshi and South Asian meals.
-- **Manual meal logging** for calories, macros, fiber, water, sodium, sugar, and notes.
-- **Photo-based plate analysis** with estimated food detection, nutrition summaries, and health scoring.
-- **Dashboard overview** for daily totals, macro progress, hydration, streaks, and recent meals.
-- **Meal and plate history** so users can review previous logs and photo analyses.
-- **Profile-aware guidance** based on goals, activity level, dietary preference, allergies, budget, and health considerations.
-- **Nanumoni AI chat** for friendly nutrition explanations over retrieved app data and safe fallback templates.
-- **Supabase-backed persistence** for authentication, meal logs, profiles, chat threads, and plate photo storage.
-- **Safer health messaging** that avoids diagnosis and encourages professional care for medical decisions.
+---
 
-## Tech Stack
+## 🚀 The Tech Stack
 
-- **Framework:** TanStack Start, TanStack Router
-- **Frontend:** React, TypeScript
-- **Styling:** Tailwind CSS v4, Shadcn/ui, Radix UI primitives
-- **State and data:** TanStack Query, TanStack server functions
-- **Backend and storage:** Supabase Auth, Postgres, Storage
-- **AI:** Gemini via Vercel AI SDK (`ai`, `@ai-sdk/google`)
-- **Charts and UI:** Recharts, Lucide React, Sonner
-- **Build/deployment target:** Vite, Nitro, Cloudflare Workers/Vercel-style deployment
-- **External nutrition/search APIs:** USDA FoodData Central, Edamam, openFDA, RxNorm, WHO ICD
+Desi Digest is engineered for performance, safety, and scale:
 
-## Local Setup
+- **Framework:** TanStack Start & TanStack Router
+- **Frontend UI:** React, TypeScript, Tailwind CSS v4, Shadcn/ui, Radix UI
+- **Backend & Database:** Supabase (Auth, Postgres, Storage, RLS)
+- **AI & Integrations:** Vercel AI SDK (`ai`, `@ai-sdk/google`) powered by Gemini
+- **Data Fetching:** TanStack Query & Server Functions
+- **Charts & Feedback:** Recharts, Lucide React, Sonner
+- **Build/Deploy:** Vite, Nitro (Cloudflare Workers/Vercel)
 
-Prerequisites:
+---
 
-- Node.js 20+ recommended
-- npm
-- A Supabase project for auth, database, and storage
-- API keys for the optional external services you plan to enable
+## 📖 Documentation
 
-Install dependencies:
+Dive deeper into the features, architecture, and design decisions by visiting our [Documentation](/docs) directly within the application.
 
-```bash
-npm install
-```
+---
 
-Create your local environment file:
+## 👨‍💻 Team & Contributions
 
-```bash
-cp .env.example .env
-```
+This project was brought to life for the **Infinity AI BuildFest 2026** by a dedicated team. 
 
-Fill in the required values in `.env`, then start the development server:
+*For a full breakdown of team contributions, please see our [CONTRIBUTIONS.md](./CONTRIBUTIONS.md).*
 
-```bash
-npm run dev
-```
+### Special Shoutout: Tasfiq Tasin (Technical Lead & Full-Stack AI Engineer)
+Tasfiq was the driving force behind the core architecture, backend systems, and the complex AI/database integrations that make Desi Digest smart and reliable. 
 
-Open the local URL printed by Vite in your terminal.
+**Key contributions by Tasfiq include:**
+- Architecting the **Supabase backend**, including Auth, Database schemas, and Storage integrations.
+- Building the **Gemini AI model integration**, handling everything from food knowledge retrieval to embeddings and strict AI safety routing.
+- Developing the **Plate Analyzer** for photo-based nutrition estimations.
+- Engineering the **Smart Health Nudge System**, including robust deterministic fallbacks, curated local image mappings, and multi-language support.
+- Creating the **"Shops Near You"** local discovery bridge and the **"Raw Food Basket"** feature using privacy-first, zero-checkout Google Maps integrations.
+- Implementing the sophisticated **Banglish manual meal parser** to ensure typed local meals correctly estimate macros without relying on external APIs.
+- Managing deployment, Vercel/Supabase production fixes, and ensuring a flawless, regression-free codebase.
 
-If you are setting up a fresh Supabase project, review the migrations in `supabase/migrations` and apply them through your preferred Supabase workflow before testing authenticated meal logging, profiles, storage, or chat history.
+---
 
-## Environment Variables
+## 🛠 Local Setup
 
-Use `.env.example` as the source of truth for local configuration. Do not commit real API keys.
+**Prerequisites:** Node.js 20+, npm, and a Supabase project.
 
-Core Supabase variables:
+1. **Install dependencies:**
+   ```bash
+   npm install
+   ```
 
-- `VITE_SUPABASE_URL`
-- `VITE_SUPABASE_PUBLISHABLE_KEY`
-- `VITE_SUPABASE_PROJECT_ID`
-- `SUPABASE_URL`
-- `SUPABASE_PUBLISHABLE_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY`
+2. **Environment Variables:**
+   Copy the example environment file and fill in your keys:
+   ```bash
+   cp .env.example .env
+   ```
+   *(Note: Never commit your real API keys! Keep server secrets like `SUPABASE_SERVICE_ROLE_KEY` and `GEMINI_API_KEY` hidden from the browser).*
 
-Gemini and AI behavior:
+3. **Start the development server:**
+   ```bash
+   npm run dev
+   ```
 
-- `GEMINI_API_KEY`
-- `GOOGLE_GENERATIVE_AI_API_KEY`
-- `ENABLE_GEMINI_CHAT`
-- `ENABLE_GEMINI_IMAGE`
-- `ENABLE_GEMINI_FOOD_VISION`
-- `ENABLE_GEMINI_NUTRITION_ANALYSIS`
-- `MAX_GEMINI_CALLS_PER_DAY`
-- `USE_TEMPLATE_FALLBACK`
+## ⚠️ Medical Disclaimer
 
-External API integrations:
-
-- `DATA_GOV_API_KEY`
-- `USDA_FDC_BASE_URL`
-- `OPENFDA_BASE_URL`
-- `RXNORM_BASE_URL`
-- `WHO_ICD_CLIENT_ID`
-- `WHO_ICD_CLIENT_SECRET`
-- `WHO_ICD_TOKEN_URL`
-- `WHO_ICD_BASE_URL`
-- `EDAMAM_APP_ID`
-- `EDAMAM_APP_KEY`
-
-Only `VITE_` variables should be treated as browser-safe. Backend secrets such as service role keys, Gemini keys, WHO ICD credentials, and Edamam keys must remain server-side.
-
-### Vercel Deployment Checklist
-When deploying the app to Vercel (or any other hosting environment), configure the following environment variables in your Vercel dashboard:
-
-#### Required Public Variables (Browser-Safe):
-- `VITE_SUPABASE_URL`: Your Supabase project URL.
-- `VITE_SUPABASE_PUBLISHABLE_KEY`: Your Supabase project anon key.
-- `VITE_SUPABASE_PROJECT_ID`: Your Supabase project ID.
-
-#### Required Private Variables (Server-Only Secrets):
-- `SUPABASE_URL`: Same as VITE_SUPABASE_URL.
-- `SUPABASE_PUBLISHABLE_KEY`: Same as VITE_SUPABASE_PUBLISHABLE_KEY.
-- `SUPABASE_SERVICE_ROLE_KEY`: Your Supabase service role key (bypasses RLS).
-- `GOOGLE_GENERATIVE_AI_API_KEY` (or `GEMINI_API_KEY`): Key for Nanumoni chat/insights.
-- `OPENROUTER_API_KEY`: API key for the OpenRouter backup vision fallback.
-- `EDAMAM_APP_ID` & `EDAMAM_APP_KEY`: Application credentials for Edamam image classification.
-
-#### Optional Private Variables (Fallback Defaults Exist):
-- `DATA_GOV_API_KEY`: Optional key for USDA FoodData Central / openFDA queries.
-- `WHO_ICD_CLIENT_ID` & `WHO_ICD_CLIENT_SECRET`: Client credentials for WHO ICD database lookups.
-
-> [!IMPORTANT]
-> Do NOT prefix server-only keys (like Gemini, OpenRouter, Edamam, or Supabase service roles) with `VITE_`.
-> Always trigger a redeployment in Vercel after updating your environment variables to load them into serverless functions.
-
-
-## Available Scripts
-
-```bash
-npm run dev          # Start the local Vite dev server
-npm run build        # Build for production
-npm run build:dev    # Build in development mode
-npm run preview      # Preview the production build locally
-npm run typecheck    # Run TypeScript without emitting files
-npm run lint         # Run ESLint
-npm run format       # Format files with Prettier
-npm run start        # Start the built Nitro server
-npm run check:apis   # Check configured external API health
-```
-
-## Project Structure
-
-```text
-src/routes/                 App routes, pages, and API endpoints
-src/components/             Shared React components and Shadcn/ui components
-src/lib/                    Server functions, nutrition logic, AI helpers, utilities
-src/integrations/supabase/  Supabase clients, auth middleware, generated types
-supabase/migrations/        Database migrations
-public/                     Static assets and public media
-scripts/                    Utility scripts and API checks
-```
-
-## Recent Improvements
-
-- Fixed dashboard iron accumulation by reading iron from the meal analysis nutrition payload.
-- Added a dashboard loading skeleton for a smoother authenticated loading state.
-- Extracted `MacroRing` for reusable macro progress visualization.
-- Extracted `LogMealDialog` for cleaner meal logging UI.
-- Added `DashboardSkeleton` for dashboard-specific loading UX.
-- Improved dashboard type safety and reduced component complexity.
-
-## Demo and Presentation
-
-Desi Digest is prepared as a hackathon-ready demo for **Infinity AI BuildFest 2026**. The presentation focus is on culturally intelligent nutrition tracking, safer AI health guidance, local meal analysis, and a practical product experience for Bangladeshi and South Asian users.
-
-This repository does not claim hospital partnerships, medical certifications, regulatory approval, or clinical validation.
-
-## Medical Disclaimer
-
-Desi Digest provides general nutrition education and meal-tracking support. It is **not** a medical diagnosis tool, treatment plan, emergency service, or replacement for a licensed physician, registered dietitian, or qualified healthcare professional.
-
-Users with diabetes, hypertension, pregnancy, kidney disease, eating disorders, allergies, or any serious medical condition should consult a qualified professional before making health decisions based on app output.
-
-## Future Roadmap
-
-- Expand local Bangladeshi and South Asian food coverage with stronger nutrition source labeling.
-- Improve portion correction so users can adjust estimated grams, servings, and household measures.
-- Add richer micronutrient trends for iron, vitamin A, zinc, sodium, and fiber.
-- Strengthen offline and demo flows for events, classrooms, and low-connectivity environments.
-- Add dietitian or reviewer workflows for safer expert-assisted recommendations.
-- Improve accessibility, localization, Bangla/Banglish support, and mobile ergonomics.
-- Harden deployment, monitoring, API quota handling, and error observability.
-
-## Team and Contributions
-
-Contributions are welcome through issues and pull requests. Useful contribution areas include nutrition data quality, localization, accessibility, UI polish, testing, Supabase integration, API reliability, and safer health communication.
-
-When contributing, avoid adding unverified medical claims, fake partnerships, fake certifications, or real secrets. Keep user safety, cultural fit, and source transparency at the center of product decisions.
+Desi Digest provides general nutrition education and meal-tracking support. It is **not** a medical diagnosis tool, treatment plan, or replacement for a licensed physician or registered dietitian. Users with specific medical conditions should consult a qualified professional before making health decisions.
