@@ -10,6 +10,17 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { PlateAnalyzer } from "@/components/PlateAnalyzer";
 import logoMark from "@/assets/logo-mark.png";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 import { isDemoSession, endDemoSession } from "@/lib/demo-session";
 
@@ -40,6 +51,7 @@ function ChatLayout() {
   const create = useServerFn(createThread);
   const del = useServerFn(deleteThread);
   const [openMobile, setOpenMobile] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const demo = isDemoSession();
   const [demoThreads, setDemoThreads] = useState<{ id: string; title: string; updated_at: string }[]>([]);
@@ -107,8 +119,11 @@ function ChatLayout() {
     },
     onSuccess: (res) => {
       if (!demo) qc.invalidateQueries({ queryKey: ["threads"] });
+      toast.success("Conversation deleted");
       if (params.threadId === res.id) navigate({ to: "/chat" });
     },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed to delete conversation"),
+    onSettled: () => setDeletingId(null),
   });
 
   async function signOut() {
@@ -179,7 +194,7 @@ function ChatLayout() {
                       {t.title || "Untitled"}
                     </Link>
                     <button
-                      onClick={() => delMut.mutate(t.id)}
+                      onClick={() => setDeletingId(t.id)}
                       aria-label="Delete conversation"
                       className="rounded-md p-1.5 text-muted-foreground opacity-0 transition group-hover:opacity-100 hover:bg-destructive/10 hover:text-destructive"
                     >
@@ -197,6 +212,26 @@ function ChatLayout() {
           </Button>
         </div>
       </aside>
+
+      <AlertDialog open={!!deletingId} onOpenChange={(open) => !open && setDeletingId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete conversation?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete your chat history.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => deletingId && delMut.mutate(deletingId)}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Mobile backdrop */}
       {openMobile && (

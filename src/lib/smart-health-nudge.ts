@@ -4,28 +4,41 @@ export type NudgeImageKind = "lal-shak" | "dal" | "water" | "egg" | "fish" | "ve
 
 export type SmartHealthNudgePlanItem = {
   day: number;
-  title: string;
-  suggestion: string;
-  benefit: string;
+  titleBn: string;
+  titleEn: string;
+  suggestionBn: string;
+  suggestionEn: string;
+  benefitBn: string;
+  benefitEn: string;
   imageKind: NudgeImageKind;
   imageUrl?: string;
 };
 
 export type SmartHealthNudge = {
   id: string;
-  title: string;
-  message: string;
-  benefit: string;
-  actionLabel: string;
+  titleBn: string;
+  titleEn: string;
+  messageBn: string;
+  messageEn: string;
+  benefitBn: string;
+  benefitEn: string;
+  actionLabelBn: string;
+  actionLabelEn: string;
   imageKind: NudgeImageKind;
   imageUrl?: string;
+  imageSource?: string;
+  imageSourceUrl?: string;
   priority: "low" | "medium" | "high";
-  reason: string;
-  disclaimer: string;
+  reasonBn: string;
+  reasonEn: string;
+  disclaimerBn: string;
+  disclaimerEn: string;
   isDemo?: boolean;
   sevenDayPlan?: SmartHealthNudgePlanItem[];
   checkInQuestionBn?: string;
   checkInQuestionEn?: string;
+  exerciseSuggestionBn?: string;
+  exerciseSuggestionEn?: string;
 };
 
 // Simple helper to safely analyze meals
@@ -34,22 +47,31 @@ export function generateSmartNudge(
   recentMeals: MealLog[],
   isDemo: boolean = false
 ): SmartHealthNudge | null {
-  const disclaimer = "General nutrition guidance — not medical advice.";
+  const disclaimerBn = "General nutrition guidance — not medical advice. Doctor er poramorsho nin.";
+  const disclaimerEn = "General nutrition guidance — not medical advice. Consult a professional.";
 
   if (isDemo) {
     return {
       id: "nudge-demo",
-      title: "Sample demo nudge",
-      message: "Sample data based nudge: dal, shak, and vegetables add korle fiber and meal balance improve hote pare.",
-      benefit: "Demo data only.",
-      actionLabel: "Got it",
+      titleBn: "Sample demo nudge",
+      titleEn: "Sample demo nudge",
+      messageBn: "Sample data based nudge: dal, shak, and vegetables add korle fiber and meal balance improve hote pare.",
+      messageEn: "Sample data based nudge: adding dal, shak, and vegetables can improve fiber and meal balance.",
+      benefitBn: "Demo data only.",
+      benefitEn: "Demo data only.",
+      actionLabelBn: "Bujhte perechi",
+      actionLabelEn: "Got it",
       imageKind: "vegetables",
       priority: "high",
-      reason: "demo-mode",
-      disclaimer,
+      reasonBn: "demo-mode logic search pattern",
+      reasonEn: "demo-mode logic search pattern",
+      disclaimerBn,
+      disclaimerEn,
       isDemo: true,
       checkInQuestionBn: "Dadu bhai, kalke ki vegetables ektu kheyecho?",
-      checkInQuestionEn: "Did you follow yesterday's tip?"
+      checkInQuestionEn: "Did you manage to eat some vegetables yesterday?",
+      exerciseSuggestionBn: "Ajke 10 minute halka walk korun.",
+      exerciseSuggestionEn: "Try a light 10-minute walk today."
     };
   }
 
@@ -80,16 +102,24 @@ export function generateSmartNudge(
   if (todaysMeals.length >= 1 && totalFiber < 10) {
     return {
       id: "nudge-low-fiber",
-      title: "Ajke lal shak ba vegetables add korun",
-      message: "Apnar recent meal pattern e fiber kom mone hocche. Lal shak, dal, lau, mixed vegetables add korle fullness and digestion support pete paren.",
-      benefit: "Fiber digestion and fullness support kore.",
-      actionLabel: "View healthier idea",
+      titleBn: "Ajke lal shak ba shobji add korun",
+      titleEn: "Add red amaranth or vegetables today",
+      messageBn: "Apnar recent meal pattern e fiber kom mone hocche. Lal shak, dal, ba mixed shobji add korle digestion and fullness support pete paren.",
+      messageEn: "Your recent meal pattern seems low in fiber. Adding red amaranth, lentils, or mixed vegetables can support digestion and fullness.",
+      benefitBn: "Fiber digestion and fullness support kore.",
+      benefitEn: "Fiber supports digestion and keeps you full longer.",
+      actionLabelBn: "Pusti-somponno idea dekhun",
+      actionLabelEn: "View healthier idea",
       imageKind: "lal-shak",
       priority: "high",
-      reason: "low-fiber",
-      disclaimer,
-      checkInQuestionBn: "Dadu bhai, kalke ki lal shak/vegetables kheyecho?",
-      checkInQuestionEn: "Did you add any vegetables yesterday?"
+      reasonBn: "Fiber intake ektu kom chilo kisu meal e.",
+      reasonEn: "Fiber intake was slightly low in recent meals.",
+      disclaimerBn,
+      disclaimerEn,
+      checkInQuestionBn: "Dadu bhai, kalke ki lal shak/shobji kheyecho?",
+      checkInQuestionEn: "Did you add any vegetables yesterday?",
+      exerciseSuggestionBn: "Ajke ektu beksi walk try korun.",
+      exerciseSuggestionEn: "Try walking a bit more today."
     };
   }
 
@@ -97,16 +127,24 @@ export function generateSmartNudge(
   if (todaysMeals.length >= 1 && totalCalories > 1000 && totalProtein < 30) {
     return {
       id: "nudge-rice-balance",
-      title: "Rice portion balance korun",
-      message: "Plate e rice beshi hole energy intake bere jete pare. Rice er sathe dal, dim, fish, chicken, or vegetables add korle balance better hoy.",
-      benefit: "Protein + fiber plate ke more balanced kore.",
-      actionLabel: "Balance your plate",
+      titleBn: "Bhat er portion balance korun",
+      titleEn: "Balance your rice portion",
+      messageBn: "Plate e bhat beshi hole energy intake bere jete pare. Bhat er sathe dal, dim, mach, murgi ba shobji add korle balance better hoy.",
+      messageEn: "Too much rice can lead to high energy intake. Balancing it with lentils, eggs, fish, or vegetables helps maintain a healthy plate.",
+      benefitBn: "Protein + fiber plate ke more balanced kore.",
+      benefitEn: "Protein and fiber make your plate more balanced.",
+      actionLabelBn: "Meal balance korun",
+      actionLabelEn: "Balance your plate",
       imageKind: "rice-balance",
       priority: "medium",
-      reason: "low-protein-high-cal",
-      disclaimer,
-      checkInQuestionBn: "Dadu bhai, kalke rice er sathe ektu protein ba vegetables add korte perecho?",
-      checkInQuestionEn: "Did you balance your rice portion yesterday?"
+      reasonBn: "Protein er tulonay bhat ektu beshi chilo.",
+      reasonEn: "Rice portion was high compared to protein intake.",
+      disclaimerBn,
+      disclaimerEn,
+      checkInQuestionBn: "Dadu bhai, kalke bhat er sathe ektu protein ba shobji add korte perecho?",
+      checkInQuestionEn: "Did you balance your rice portion yesterday?",
+      exerciseSuggestionBn: "Halka stretching try korte paren.",
+      exerciseSuggestionEn: "Consider some light stretching today."
     };
   }
 
@@ -114,32 +152,48 @@ export function generateSmartNudge(
   if (todaysMeals.length >= 2 && totalWater < 1000) {
     return {
       id: "nudge-hydration-fiber",
-      title: "Pani + fiber reminder",
-      message: "Apnar profile/meal pattern theke mone hocche, pani and fiber beshi khele digestion support hobe. Ajke pani intake ektu conscious thakun.",
-      benefit: "Hydration and fiber bowel movement support korte pare.",
-      actionLabel: "Drink some water",
+      titleBn: "Pani + fiber reminder",
+      titleEn: "Water + fiber reminder",
+      messageBn: "Apnar profile/meal pattern theke mone hocche, pani and fiber beshi khele digestion support hobe. Ajke pani intake ektu socheton thakun.",
+      messageEn: "Based on your pattern, more water and fiber can support your health. Be mindful of your water intake today.",
+      benefitBn: "Hydration and fiber bowel movement support korte pare.",
+      benefitEn: "Hydration and fiber support regular bowel movements.",
+      actionLabelBn: "Pani pan korun",
+      actionLabelEn: "Drink some water",
       imageKind: "water",
       priority: "medium",
-      reason: "hydration-reminder",
-      disclaimer,
+      reasonBn: "Pani intake ektu kom chilo kisu meal e.",
+      reasonEn: "Water intake was slightly low recently.",
+      disclaimerBn,
+      disclaimerEn,
       checkInQuestionBn: "Dadu bhai, kalke pani intake ektu barate perecho?",
-      checkInQuestionEn: "Did you drink more water yesterday?"
+      checkInQuestionEn: "Did you drink more water yesterday?",
+      exerciseSuggestionBn: "10 minute brisk walk try korun.",
+      exerciseSuggestionEn: "Try a 10-minute brisk walk today."
     };
   }
 
   // Default / Empty State
   return {
     id: "nudge-default-balance",
-    title: "Start with one balanced Deshi plate",
-    message: "Rice/roti er sathe dal/protein and vegetables add korle meal balance better hoy.",
-    benefit: "Balanced meals provide sustained energy.",
-    actionLabel: "Plan your next meal",
+    titleBn: "Aktu balanced Deshi plate diye shuru korun",
+    titleEn: "Start with a balanced Deshi plate",
+    messageBn: "Bhat ba ruti er sathe dal/protein and shobji add korle meal balance better hoy.",
+    messageEn: "Adding lentils, protein, and vegetables to your rice or roti makes for a more balanced meal.",
+    benefitBn: "Balanced meal sustained energy provide kore.",
+    benefitEn: "Balanced meals provide sustained energy throughout the day.",
+    actionLabelBn: "Poroborti meal plan korun",
+    actionLabelEn: "Plan your next meal",
     imageKind: "generic",
     priority: "low",
-    reason: "default-nudge",
-    disclaimer,
+    reasonBn: "General wellness recommendation.",
+    reasonEn: "General wellness recommendation.",
+    disclaimerBn,
+    disclaimerEn,
     checkInQuestionBn: "Dadu bhai, kalke ki balanced plate follow korte perecho?",
-    checkInQuestionEn: "Did you have a balanced plate yesterday?"
+    checkInQuestionEn: "Did you have a balanced plate yesterday?",
+    exerciseSuggestionBn: "Ajke ektu active thakar chesta korun.",
+    exerciseSuggestionEn: "Try to stay active today."
   };
 }
 
@@ -271,14 +325,19 @@ export function sanitizeNudgeText(text: string): string {
 export function validateNudgeSafety(nudge: SmartHealthNudge): boolean {
   try {
     const allText = [
-      nudge.title,
-      nudge.message,
-      nudge.benefit,
-      nudge.actionLabel,
-      nudge.reason,
+      nudge.titleBn,
+      nudge.titleEn,
+      nudge.messageBn,
+      nudge.messageEn,
+      nudge.benefitBn,
+      nudge.benefitEn,
+      nudge.actionLabelBn,
+      nudge.actionLabelEn,
+      nudge.reasonBn,
+      nudge.reasonEn,
       nudge.checkInQuestionBn || "",
       nudge.checkInQuestionEn || "",
-      ...(nudge.sevenDayPlan || []).flatMap(p => [p.title, p.suggestion, p.benefit])
+      ...(nudge.sevenDayPlan || []).flatMap(p => [p.titleBn, p.titleEn, p.suggestionBn, p.suggestionEn, p.benefitBn, p.benefitEn])
     ].join(" ").toLowerCase();
 
     for (const word of UNSAFE_WORDS) {
@@ -287,7 +346,7 @@ export function validateNudgeSafety(nudge: SmartHealthNudge): boolean {
       }
     }
 
-    if (!nudge.disclaimer || !nudge.disclaimer.includes("not medical advice")) {
+    if (!nudge.disclaimerEn || !nudge.disclaimerEn.includes("not medical advice")) {
       return false;
     }
 
@@ -377,8 +436,8 @@ export function initOrUpdateHabitState(nudge: SmartHealthNudge) {
       date: today,
       nudgeId: nudge.id,
       imageKind: nudge.imageKind,
-      titleBn: nudge.title,
-      titleEn: nudge.title,
+      titleBn: nudge.titleBn,
+      titleEn: nudge.titleEn,
       checkInQuestionBn: nudge.checkInQuestionBn || "Dadu bhai, kalke ki suggestion follow korte perecho?",
       checkInQuestionEn: nudge.checkInQuestionEn || "Did you follow yesterday's tip?"
     };

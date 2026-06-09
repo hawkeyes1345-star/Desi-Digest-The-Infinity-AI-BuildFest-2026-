@@ -7,23 +7,34 @@ const VerifierSchema = z.object({
   issues: z.array(z.string()),
   fixedNudge: z.object({
     id: z.string(),
-    title: z.string(),
-    message: z.string(),
-    benefit: z.string(),
-    actionLabel: z.string(),
+    titleBn: z.string(),
+    titleEn: z.string(),
+    messageBn: z.string(),
+    messageEn: z.string(),
+    benefitBn: z.string(),
+    benefitEn: z.string(),
+    actionLabelBn: z.string(),
+    actionLabelEn: z.string(),
     imageKind: z.enum(["lal-shak", "dal", "water", "egg", "fish", "vegetables", "rice-balance", "generic"]),
     priority: z.enum(["low", "medium", "high"]),
-    reason: z.string(),
-    disclaimer: z.string(),
+    reasonBn: z.string(),
+    reasonEn: z.string(),
+    disclaimerBn: z.string(),
+    disclaimerEn: z.string(),
     sevenDayPlan: z.array(z.object({
       day: z.number(),
-      title: z.string(),
-      suggestion: z.string(),
-      benefit: z.string(),
+      titleBn: z.string(),
+      titleEn: z.string(),
+      suggestionBn: z.string(),
+      suggestionEn: z.string(),
+      benefitBn: z.string(),
+      benefitEn: z.string(),
       imageKind: z.enum(["lal-shak", "dal", "water", "egg", "fish", "vegetables", "rice-balance", "generic"]),
     })).optional(),
     checkInQuestionBn: z.string().optional(),
-    checkInQuestionEn: z.string().optional()
+    checkInQuestionEn: z.string().optional(),
+    exerciseSuggestionBn: z.string().optional(),
+    exerciseSuggestionEn: z.string().optional(),
   }).optional()
 });
 
@@ -32,9 +43,13 @@ export async function verifyNudgePlan3(generatedNudge: SmartHealthNudge, fallbac
   let nudgeToVerify = { ...generatedNudge };
   
   // Sanitize text fields
-  nudgeToVerify.title = sanitizeNudgeText(nudgeToVerify.title);
-  nudgeToVerify.message = sanitizeNudgeText(nudgeToVerify.message);
-  nudgeToVerify.benefit = sanitizeNudgeText(nudgeToVerify.benefit);
+  nudgeToVerify.titleBn = sanitizeNudgeText(nudgeToVerify.titleBn);
+  nudgeToVerify.titleEn = sanitizeNudgeText(nudgeToVerify.titleEn);
+  nudgeToVerify.messageBn = sanitizeNudgeText(nudgeToVerify.messageBn);
+  nudgeToVerify.messageEn = sanitizeNudgeText(nudgeToVerify.messageEn);
+  nudgeToVerify.benefitBn = sanitizeNudgeText(nudgeToVerify.benefitBn);
+  nudgeToVerify.benefitEn = sanitizeNudgeText(nudgeToVerify.benefitEn);
+  
   if (nudgeToVerify.checkInQuestionBn) {
     nudgeToVerify.checkInQuestionBn = sanitizeNudgeText(nudgeToVerify.checkInQuestionBn);
   }
@@ -44,9 +59,12 @@ export async function verifyNudgePlan3(generatedNudge: SmartHealthNudge, fallbac
   if (nudgeToVerify.sevenDayPlan) {
     nudgeToVerify.sevenDayPlan = nudgeToVerify.sevenDayPlan.map(p => ({
       ...p,
-      title: sanitizeNudgeText(p.title),
-      suggestion: sanitizeNudgeText(p.suggestion),
-      benefit: sanitizeNudgeText(p.benefit)
+      titleBn: sanitizeNudgeText(p.titleBn),
+      titleEn: sanitizeNudgeText(p.titleEn),
+      suggestionBn: sanitizeNudgeText(p.suggestionBn),
+      suggestionEn: sanitizeNudgeText(p.suggestionEn),
+      benefitBn: sanitizeNudgeText(p.benefitBn),
+      benefitEn: sanitizeNudgeText(p.benefitEn),
     }));
   }
 
@@ -85,8 +103,6 @@ Analyze the nudge and return JSON. If unsafe, provide a fixed safe version in "f
       }
     } catch (e) {
       console.error("[Nudge Verifier] AI Verification threw error. Falling back to safe local nudge.");
-      // It's already locally safe, but if the verifier throws, we can either return the local one or the fallback.
-      // Returning the local one is fine since `validateNudgeSafety` passed.
       return nudgeToVerify;
     }
   }
