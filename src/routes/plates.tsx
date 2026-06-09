@@ -28,14 +28,20 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { listPlateHistory, deleteMeal, type MealLog } from "@/lib/meals.functions";
+import { listPlateHistory, deleteMeal, listRecentMeals, type MealLog } from "@/lib/meals.functions";
+import { getMyProfile } from "@/lib/profile.functions";
 import { PlateAnalyzer } from "@/components/PlateAnalyzer";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import nanumoniAvatar from "@/assets/nanumoni-avatar.jpg";
-import { isDemoSession, getDemoMeals, deleteDemoMeal, endDemoSession } from "@/lib/demo-session";
+import { isDemoSession, getDemoMeals, deleteDemoMeal, endDemoSession, demoProfile } from "@/lib/demo-session";
 import { PlateAnalysisResult } from "@/components/plate/PlateAnalysisResult";
+import {
+  calculateSummaryData,
+  buildDoctorShareSummary,
+  buildWhatsAppShareUrl,
+} from "@/lib/share-summary";
 
 function PlatesSkeleton() {
   return (
@@ -137,6 +143,8 @@ function PlatesPage() {
   const qc = useQueryClient();
   const list = useServerFn(listPlateHistory);
   const del = useServerFn(deleteMeal);
+  const getProfile = useServerFn(getMyProfile);
+  const listMeals = useServerFn(listRecentMeals);
   const [selected, setSelected] = useState<MealLog | null>(null);
 
   const demo = isDemoSession();
@@ -165,6 +173,39 @@ function PlatesPage() {
     },
     enabled: mounted,
   });
+
+  const profileQ = useQuery({
+    queryKey: ["profile"],
+    queryFn: () => {
+      if (demo) {
+        if (typeof window !== "undefined") {
+          const stored = localStorage.getItem("deshi-digest-demo-profile");
+          return stored ? JSON.parse(stored) : demoProfile;
+        }
+        return demoProfile;
+      }
+      return getProfile();
+    },
+    enabled: mounted,
+  });
+
+  const mealsQ = useQuery({
+    queryKey: ["meals"],
+    queryFn: () => {
+      if (demo) return getDemoMeals();
+      return listMeals();
+    },
+    enabled: mounted,
+  });
+
+  const handleShare = () => {
+    const profile = profileQ.data;
+    const allMeals = mealsQ.data ?? [];
+    const shareData = calculateSummaryData(profile, allMeals, demo);
+    const text = buildDoctorShareSummary(shareData);
+    const url = buildWhatsAppShareUrl(text);
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
 
   const plates = ((q.data ?? []) as MealLog[]).filter((m) => m && m.source === "photo");
 
@@ -325,6 +366,14 @@ function PlatesPage() {
             >
               <Printer className="h-4 w-4 mr-1.5" />
               {isExporting ? "Exporting..." : "Download Doctor-Shareable Summary"}
+            </Button>
+            <Button
+              variant="outline"
+              size="lg"
+              onClick={handleShare}
+              className="shadow-soft"
+            >
+              <MessageCircle className="h-4 w-4 mr-1.5 text-[#25D366]" /> Share Summary
             </Button>
             <PlateAnalyzer
               trigger={
