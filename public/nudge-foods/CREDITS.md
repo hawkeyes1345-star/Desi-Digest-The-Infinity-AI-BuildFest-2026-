@@ -18,15 +18,15 @@ The following images are free-licensed real photos sourced from Pexels for offli
 | orange.jpg | Pexels | https://www.pexels.com/photo/327090/ | Free to use |
 | watermelon.jpg | Pexels | https://www.pexels.com/photo/1313267/ | Free to use |
 | coconut.jpg | Pexels | https://www.pexels.com/photo/4195527/ | Free to use |
-| dates.jpg | Pexels | https://www.pexels.com/photo/6868598/ | Free to use |
+| dates.jpg | Wikimedia Commons | https://commons.wikimedia.org/wiki/File:Dried_dates.jpg | CC BY-SA / Public Domain |
 | pomegranate.jpg | Pexels | https://www.pexels.com/photo/5753063/ | Free to use |
 | papaya.jpg | Pexels | https://www.pexels.com/photo/8753754/ | Free to use |
 | tomato.jpg | Pexels | https://www.pexels.com/photo/1327838/ | Free to use |
 | cucumber.jpg | Pexels | https://www.pexels.com/photo/3568039/ | Free to use |
 | carrot.jpg | Pexels | https://www.pexels.com/photo/143133/ | Free to use |
-| cabbage.jpg | Pexels | https://www.pexels.com/photo/251889/ | Free to use |
-| cauliflower.jpg | Pexels | https://www.pexels.com/photo/824531/ | Free to use |
-| potato.jpg | Pexels | https://www.pexels.com/photo/144248/ | Free to use |
+| cabbage.jpg | Wikimedia Commons | https://commons.wikimedia.org/wiki/File:Cabbage_and_cross_section_on_white.jpg | CC BY-SA / Public Domain |
+| cauliflower.jpg | Wikimedia Commons | https://commons.wikimedia.org/wiki/File:Cauliflower_1_bd.jpg | CC BY-SA / Public Domain |
+| potato.jpg | Wikimedia Commons | https://commons.wikimedia.org/wiki/File:A_Potato.jpg | CC BY-SA / Public Domain |
 | onion.jpg | Pexels | https://www.pexels.com/photo/1448054/ | Free to use |
 | garlic.jpg | Pexels | https://www.pexels.com/photo/1393382/ | Free to use |
 | ginger.jpg | Pexels | https://www.pexels.com/photo/4197491/ | Free to use |
@@ -46,7 +46,7 @@ The following images are free-licensed real photos sourced from Pexels for offli
 | cheese.jpg | Pexels | https://www.pexels.com/photo/2059151/ | Free to use |
 | rice.jpg | Pexels | https://www.pexels.com/photo/4110251/ | Free to use |
 | roti.jpg | Pexels | https://www.pexels.com/photo/2089808/ | Free to use |
-| oats.jpg | Pexels | https://www.pexels.com/photo/1481128/ | Free to use |
+| oats.jpg | Wikimedia Commons | https://commons.wikimedia.org/wiki/File:Rolled_Oats.jpg | CC BY-SA / Public Domain |
 | bread.jpg | Pexels | https://www.pexels.com/photo/209206/ | Free to use |
 | tea.jpg | Pexels | https://www.pexels.com/photo/1417945/ | Free to use |
 | healthy-snack.jpg | Pexels | https://www.pexels.com/photo/1640777/ | Free to use |
