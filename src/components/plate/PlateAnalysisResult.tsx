@@ -268,6 +268,7 @@ export function PlateAnalysisResult({
   onReupload?: () => void;
 }) {
   const [showDetails, setShowDetails] = useState(false);
+  const [manualBstiCode, setManualBstiCode] = useState("");
 
   if (!analysis.detected || analysis.blurry) {
     return (
@@ -624,6 +625,7 @@ export function PlateAnalysisResult({
       {(() => {
         const trust = analyzeProductTrust({
           foodName: analysis.dishes.map(d => d.name).join(", "),
+          manualCode: manualBstiCode,
           isDemo: analysis.modelUsed === "demo-sample"
         });
         
@@ -664,8 +666,19 @@ export function PlateAnalysisResult({
                     <Input 
                       placeholder="Visible BSTI / License code" 
                       className="h-8 text-xs bg-secondary/20 border-border/40"
+                      value={manualBstiCode}
+                      onChange={(e) => setManualBstiCode(e.target.value)}
                     />
-                    <Button variant="outline" size="sm" className="h-8 text-[10px] uppercase font-bold shrink-0">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="h-8 text-[10px] uppercase font-bold shrink-0"
+                      onClick={() => {
+                        if (manualBstiCode.trim()) {
+                          toast.success("Code registered for manual verification guidance.");
+                        }
+                      }}
+                    >
                       <Search className="h-3 w-3 mr-1" /> Check
                     </Button>
                   </div>
@@ -674,12 +687,13 @@ export function PlateAnalysisResult({
                     size="sm" 
                     className="h-9 text-[10px] uppercase font-bold w-full"
                     onClick={() => {
-                      if (trust.officialVerificationUrl) {
-                        window.open(trust.officialVerificationUrl, "_blank");
-                      } else {
+                      if (manualBstiCode.trim()) {
+                        navigator.clipboard.writeText(manualBstiCode);
+                        toast.info("Code copied! Opening official BSTI portal...");
+                      } else if (trust.officialVerificationUrl) {
                         toast.info("Opening official BSTI portal. Please enter the product code there.");
-                        window.open("https://bsti.gov.bd", "_blank");
                       }
+                      window.open(trust.officialVerificationUrl || "https://bsti.gov.bd", "_blank");
                     }}
                   >
                     <ExternalLink className="h-3 w-3 mr-1.5" /> {trust.officialVerificationLabel}

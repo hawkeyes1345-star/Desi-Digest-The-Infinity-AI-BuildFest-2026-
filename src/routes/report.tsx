@@ -393,6 +393,8 @@ function ReportPage() {
         {/* Disclaimer */}
         <div className="mt-6 rounded-lg bg-gray-50 p-4 text-[10px] text-gray-500 leading-relaxed">
           <strong>Disclaimer:</strong> Desi Digest provides nutrition estimates and general guidance only. It is not a medical diagnosis or treatment plan. Actual nutrition may vary by portion size, oil, recipe, and preparation method. Consult a qualified doctor or registered nutritionist for medical advice.
+          <br className="my-1" />
+          Nutrient source explanation is estimated from detected foods.
         </div>
 
         {/* Footer */}
