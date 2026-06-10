@@ -31,6 +31,8 @@ import {
   RefreshCw,
   Printer,
   MapPin,
+  Stethoscope,
+  ChevronRight,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -577,6 +579,26 @@ function Dashboard() {
               {streak === 0 && <li className="text-muted-foreground">Log a meal to start your streak 🌱</li>}
             </ul>
           </div>
+        </section>
+
+        {/* ── Care Companion Entry ── */}
+        <section className="rounded-3xl border border-primary/20 bg-primary/5 p-5 shadow-soft flex flex-col md:flex-row items-center gap-4 justify-between">
+          <div className="flex items-center gap-4">
+            <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary shrink-0">
+              <Stethoscope className="h-6 w-6" />
+            </div>
+            <div>
+              <h3 className="font-display text-base font-semibold">Prepare for doctor/dietitian</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Turn your recent meal pattern into safe discussion points and questions.
+              </p>
+            </div>
+          </div>
+          <Link to="/care-companion">
+            <Button size="sm" className="shadow-warm w-full md:w-auto">
+              Open Care Companion <ChevronRight className="ml-1 h-4 w-4" />
+            </Button>
+          </Link>
         </section>
 
         {/* ── Raw Food Basket Bridge ── */}
