@@ -1,15 +1,30 @@
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { UserCog, ArrowRight, Sparkles, Heart, Leaf, Wand2, Camera, Upload, ShieldCheck, AlertTriangle, Info, Stethoscope } from "lucide-react";
+import { UserCog, ArrowRight, Sparkles, Heart, Leaf, Wand2, Camera, Upload, ShieldCheck, AlertTriangle, Info, Stethoscope, PackageCheck, Search, ExternalLink, Utensils, Wheat, Drumstick, Droplets } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { type PlateAnalysis } from "@/lib/analyze-plate.functions";
 import { reviewMealSafety, normalizeHealthConcerns, sanitizeClinicalSafetyText } from "@/lib/clinical-nutrition-safety";
+import { analyzeProductTrust } from "@/lib/product-trust-check";
+import { explainNutrientSources, type NutrientKind } from "@/lib/nutrient-source-explainer";
 
 function formatGoal(g: string) {
   return g
     .replace(/_/g, " ")
     .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function getNutrientIcon(kind: NutrientKind) {
+  switch (kind) {
+    case "protein": return <Drumstick className="h-3.5 w-3.5" />;
+    case "carbs": return <Wheat className="h-3.5 w-3.5" />;
+    case "fiber": return <Leaf className="h-3.5 w-3.5" />;
+    case "fat": return <Utensils className="h-3.5 w-3.5" />;
+    case "hydration": return <Droplets className="h-3.5 w-3.5" />;
+    default: return <Info className="h-3.5 w-3.5" />;
+  }
 }
 
 function getPolishedSourceLabel(modelUsed?: string, fallbackReason?: string) {
@@ -572,6 +587,115 @@ export function PlateAnalysisResult({
           </div>
         </div>
       )}
+
+      {/* D2. Nutrient Source Explainer */}
+      <div className="rounded-xl border border-border bg-card p-4 space-y-3 shadow-sm">
+        <div className="flex items-center justify-between">
+          <h4 className="flex items-center gap-1.5 font-display text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+            <Utensils className="h-4 w-4" /> Where your nutrients come from
+          </h4>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {explainNutrientSources({
+            detectedIngredients: analysis.dishes.map(d => d.name),
+            isDemo: analysis.modelUsed === "demo-sample"
+          }).sources.slice(0, 6).map((source, i) => (
+            <div key={i} className="flex items-start gap-2.5 rounded-lg border border-border/40 bg-secondary/10 p-2.5">
+              <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-background text-primary shadow-sm ring-1 ring-border/50">
+                {getNutrientIcon(source.nutrient)}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="font-display text-[11px] font-bold text-foreground leading-tight">
+                  {source.title} <span className="mx-1 text-muted-foreground">→</span> <span className="text-primary uppercase tracking-tighter text-[9px]">{source.nutrient}</span>
+                </p>
+                <p className="mt-0.5 text-[10px] text-muted-foreground leading-snug">
+                  {source.message}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+        <p className="text-[10px] text-muted-foreground italic pt-1 border-t border-border/40">
+          Estimated from detected foods — not medical advice.
+        </p>
+      </div>
+
+      {/* D3. Product Trust Check */}
+      {(() => {
+        const trust = analyzeProductTrust({
+          foodName: analysis.dishes.map(d => d.name).join(", "),
+          isDemo: analysis.modelUsed === "demo-sample"
+        });
+        
+        return (
+          <div className="rounded-xl border border-border bg-card p-4 space-y-3 shadow-sm">
+            <div className="flex items-center justify-between">
+              <h4 className="flex items-center gap-1.5 font-display text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                <PackageCheck className="h-4 w-4" /> {trust.title}
+              </h4>
+              <span className={cn(
+                "rounded px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider",
+                trust.status === "verified_official" ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20" :
+                trust.status === "needs_manual_verification" ? "bg-amber-500/10 text-amber-600 border border-amber-500/20" :
+                "bg-secondary/90 text-secondary-foreground"
+              )}>
+                {trust.status.replace(/_/g, " ")}
+              </span>
+            </div>
+            
+            <p className="text-xs text-foreground/80 leading-relaxed">
+              {trust.message}
+            </p>
+
+            {trust.status !== "not_applicable_cooked_meal" && (
+              <div className="space-y-3 pt-1">
+                {trust.detectedSignals.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {trust.detectedSignals.map((sig, i) => (
+                      <span key={i} className="inline-flex items-center gap-1 rounded bg-secondary/50 px-2 py-0.5 text-[9px] font-medium text-muted-foreground border border-border/50">
+                        {sig.label}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                
+                <div className="flex flex-col gap-2">
+                  <div className="flex gap-2">
+                    <Input 
+                      placeholder="Visible BSTI / License code" 
+                      className="h-8 text-xs bg-secondary/20 border-border/40"
+                    />
+                    <Button variant="outline" size="sm" className="h-8 text-[10px] uppercase font-bold shrink-0">
+                      <Search className="h-3 w-3 mr-1" /> Check
+                    </Button>
+                  </div>
+                  <Button 
+                    variant="secondary" 
+                    size="sm" 
+                    className="h-9 text-[10px] uppercase font-bold w-full"
+                    onClick={() => {
+                      if (trust.officialVerificationUrl) {
+                        window.open(trust.officialVerificationUrl, "_blank");
+                      } else {
+                        toast.info("Opening official BSTI portal. Please enter the product code there.");
+                        window.open("https://bsti.gov.bd", "_blank");
+                      }
+                    }}
+                  >
+                    <ExternalLink className="h-3 w-3 mr-1.5" /> {trust.officialVerificationLabel}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            <div className="pt-2 border-t border-border/40">
+              <p className="text-[10px] text-muted-foreground leading-relaxed italic">
+                {trust.disclaimer}
+              </p>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* E. Healthier Plan Section */}
       <div id="nanumoni-healthier-tips" className="rounded-2xl border border-sage bg-sage/[0.02] p-5 shadow-sm space-y-4 transition-all duration-1000">

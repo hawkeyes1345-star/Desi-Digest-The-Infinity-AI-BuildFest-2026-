@@ -15,8 +15,20 @@ import {
   DialogTrigger,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { Plus } from "lucide-react";
+import { Plus, Drumstick, Wheat, Leaf, Utensils, Droplets } from "lucide-react";
 import { toast } from "sonner";
+import { explainNutrientSources, type NutrientKind } from "@/lib/nutrient-source-explainer";
+
+function getNutrientIcon(kind: NutrientKind) {
+  switch (kind) {
+    case "protein": return <Drumstick className="h-3 w-3" />;
+    case "carbs": return <Wheat className="h-3 w-3" />;
+    case "fiber": return <Leaf className="h-3 w-3" />;
+    case "fat": return <Utensils className="h-3 w-3" />;
+    case "hydration": return <Droplets className="h-3 w-3" />;
+    default: return null;
+  }
+}
 
 /** Form state type — values are strings because they come from <input>s */
 interface LogMealForm {
@@ -161,6 +173,26 @@ export function LogMealDialog({ demo = false, onDemoMealLogged }: LogMealDialogP
               </div>
             ))}
           </div>
+
+          {/* Nutrient Preview */}
+          {form.name.trim().length > 2 && (() => {
+            const explanation = explainNutrientSources({ foodText: form.name });
+            if (explanation.sources.length === 0) return null;
+            return (
+              <div className="rounded-lg border bg-muted/30 p-2.5 space-y-2">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Estimated Sources</p>
+                <div className="flex flex-wrap gap-2">
+                  {explanation.sources.map((s, i) => (
+                    <div key={i} className="flex items-center gap-1.5 rounded-full bg-background border px-2 py-0.5 shadow-sm">
+                      {getNutrientIcon(s.nutrient)}
+                      <span className="text-[10px] font-medium leading-none">{s.ingredient}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+
           <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
               Cancel
