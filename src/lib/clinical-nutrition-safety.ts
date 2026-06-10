@@ -1,3 +1,5 @@
+import { deterministicAvoidanceMatch, normalizeFoodAvoidanceItem, sanitizeAvoidanceText } from "./food-avoidance-guard";
+
 export type HealthConcern =
   | "diabetes_concern"
   | "blood_pressure_concern"
@@ -280,15 +282,25 @@ export function reviewMealSafety(input: ReviewMealSafetyInput): ClinicalNutritio
 
   // I. Allergy / avoid foods
   if (allergies.length > 0) {
-    const matchedAllergies = allergies.filter(a => mealCombinedText.includes(a.toLowerCase()));
-    if (matchedAllergies.length > 0) {
+    const matches = deterministicAvoidanceMatch(mealCombinedText, allergies);
+    if (matches.length > 0) {
+      const matchNames = Array.from(new Set(matches.map(m => normalizeFoodAvoidanceItem(m.userAvoidItem))));
+      const namesStr = matchNames.join(" and ");
+      const msg = sanitizeAvoidanceText(
+        `This meal may include ${namesStr}, which you marked as an allergy or avoid item. Please check ingredients carefully and discuss with a clinician if needed.`
+      );
+      
       flags.push({
         id: "allergy_match",
         severity: "discuss",
         title: "Allergy / avoid foods",
-        message: "This meal may include an ingredient you marked as an allergy or avoid item. Please check ingredients carefully and discuss with a clinician if needed.",
+        message: msg,
         reason: "Matched avoid item.",
-        evidence: matchedAllergies.map(a => ({ source: "allergy_match", label: "Avoid item", value: a })),
+        evidence: matches.map(m => ({ 
+          source: "allergy_match" as const, 
+          label: "Avoid item", 
+          value: normalizeFoodAvoidanceItem(m.userAvoidItem) 
+        })),
       });
     }
   }
