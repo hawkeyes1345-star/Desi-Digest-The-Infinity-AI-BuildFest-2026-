@@ -19,6 +19,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as DocsRouteImport } from './routes/docs'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as ChatRouteImport } from './routes/chat'
+import { Route as CareCompanionRouteImport } from './routes/care-companion'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ChatIndexRouteImport } from './routes/chat.index'
 import { Route as ChatThreadIdRouteImport } from './routes/chat.$threadId'
@@ -79,6 +80,11 @@ const ChatRoute = ChatRouteImport.update({
   path: '/chat',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CareCompanionRoute = CareCompanionRouteImport.update({
+  id: '/care-companion',
+  path: '/care-companion',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -127,6 +133,7 @@ const ApiEdamamImageFoodRoute = ApiEdamamImageFoodRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/care-companion': typeof CareCompanionRoute
   '/chat': typeof ChatRouteWithChildren
   '/dashboard': typeof DashboardRoute
   '/docs': typeof DocsRoute
@@ -148,6 +155,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/care-companion': typeof CareCompanionRoute
   '/dashboard': typeof DashboardRoute
   '/docs': typeof DocsRoute
   '/login': typeof LoginRoute
@@ -169,6 +177,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/care-companion': typeof CareCompanionRoute
   '/chat': typeof ChatRouteWithChildren
   '/dashboard': typeof DashboardRoute
   '/docs': typeof DocsRoute
@@ -192,6 +201,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/care-companion'
     | '/chat'
     | '/dashboard'
     | '/docs'
@@ -213,6 +223,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/care-companion'
     | '/dashboard'
     | '/docs'
     | '/login'
@@ -233,6 +244,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/care-companion'
     | '/chat'
     | '/dashboard'
     | '/docs'
@@ -255,6 +267,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  CareCompanionRoute: typeof CareCompanionRoute
   ChatRoute: typeof ChatRouteWithChildren
   DashboardRoute: typeof DashboardRoute
   DocsRoute: typeof DocsRoute
@@ -345,6 +358,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ChatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/care-companion': {
+      id: '/care-companion'
+      path: '/care-companion'
+      fullPath: '/care-companion'
+      preLoaderRoute: typeof CareCompanionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -425,6 +445,7 @@ const ChatRouteWithChildren = ChatRoute._addFileChildren(ChatRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  CareCompanionRoute: CareCompanionRoute,
   ChatRoute: ChatRouteWithChildren,
   DashboardRoute: DashboardRoute,
   DocsRoute: DocsRoute,
