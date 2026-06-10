@@ -1,5 +1,6 @@
 import { type MealLog } from "./meals.functions";
 import { type HabitState } from "./smart-health-nudge";
+import { reviewRecentMealPatternSafety, normalizeHealthConcerns, sanitizeClinicalSafetyText } from "./clinical-nutrition-safety";
 
 export type CareCompanionDataSource =
   | "real_meal_logs"
@@ -74,45 +75,33 @@ export function generateCareCompanionSummary(
   const suggestedNextSteps: string[] = [];
   const trackingSuggestions: string[] = [];
 
-  // 1. Analyze Oily/Fried Patterns
-  const oilyMeals = meals.filter(m => containsAny(m.name, OILY_KEYWORDS) || (m.notes && containsAny(m.notes, OILY_KEYWORDS)));
-  if (oilyMeals.length > 0) {
-    mealPatternNotes.push(`Detected ${oilyMeals.length} meal(s) containing fried or oily items.`);
-    nutritionDiscussionPoints.push("Recent meals include fried or oily items. Ask whether reducing deep-fried meals would support your current goals.");
-    questionsToAsk.push("Are fried snacks or oily meals okay occasionally, and how often?");
-  }
+  // Call Safety Engine
+  const safetyReview = reviewRecentMealPatternSafety({
+    recentMeals: meals.map(m => ({
+      name: m.name,
+      mealText: m.notes || "",
+      ingredients: [],
+      nutrition: {
+        calories: m.calories ?? 0,
+        protein_g: m.protein_g ?? 0,
+        fat_g: m.fat_g ?? 0,
+        carbs_g: m.carbs_g ?? 0,
+        fiber_g: m.fiber_g ?? 0,
+        sugar_g: m.sugar_g ?? 0,
+        sodium_mg: m.sodium_mg ?? 0,
+      }
+    })),
+    healthConcerns: normalizeHealthConcerns(profile),
+    isDemo
+  });
 
-  // 2. Analyze Carbohydrate/Rice Patterns
-  const riceMeals = meals.filter(m => containsAny(m.name, RICE_KEYWORDS));
-  if (riceMeals.length >= meals.length * 0.5 && meals.length > 0) {
-    mealPatternNotes.push("Rice or carbohydrate-based staples appear in the majority of logged meals.");
-    nutritionDiscussionPoints.push("Rice portions may be high in some meals. Ask what portion size fits your routine and goals.");
-    questionsToAsk.push("What rice portion is suitable for my routine and health goals?");
-  }
-
-  // 3. Analyze Vegetable/Fiber Patterns
-  const vegMeals = meals.filter(m => containsAny(m.name, VEG_KEYWORDS));
-  if (vegMeals.length < meals.length * 0.4 && meals.length > 0) {
-    mealPatternNotes.push("Vegetable or fiber intake appears low in the available logs.");
-    nutritionDiscussionPoints.push("Vegetable or fiber intake may be low. Discuss adding dal, shak, vegetables, fruits, or whole grains.");
-    questionsToAsk.push("How can I increase fiber using local foods like dal, shak, or seasonal vegetables?");
-  }
-
-  // 4. Analyze Protein Patterns
-  const proteinMeals = meals.filter(m => containsAny(m.name, PROTEIN_KEYWORDS));
-  if (proteinMeals.length < meals.length * 0.5 && meals.length > 0) {
-    mealPatternNotes.push("Some meals appear to be low in traditional protein sources.");
-    nutritionDiscussionPoints.push("Some meals may be low in protein. Discuss affordable options like egg, dal, fish, chicken, chola, milk, or yogurt.");
-    questionsToAsk.push("How often should I include dal, fish, egg, chicken, or chola?");
-  }
-
-  // 5. Analyze Processed/Salty Patterns
-  const processedMeals = meals.filter(m => containsAny(m.name, PROCESSED_KEYWORDS));
-  if (processedMeals.length > 0) {
-    mealPatternNotes.push(`Detected ${processedMeals.length} instance(s) of processed or salty snacks/meals.`);
-    nutritionDiscussionPoints.push("Some meals or snacks may be salty or processed. Ask whether reducing these would fit your health goals.");
-    questionsToAsk.push("Are processed snacks or instant noodles affecting my nutrition goals?");
-  }
+  safetyReview.flags.forEach(f => {
+    mealPatternNotes.push(sanitizeClinicalSafetyText(f.message));
+    nutritionDiscussionPoints.push(sanitizeClinicalSafetyText(`${f.title}: ${f.reason}`));
+    if (f.doctorDiscussionQuestion) {
+      questionsToAsk.push(sanitizeClinicalSafetyText(f.doctorDiscussionQuestion));
+    }
+  });
 
   // 6. Habit/Nudge Feedback
   if (habitState && habitState.days.length > 0) {

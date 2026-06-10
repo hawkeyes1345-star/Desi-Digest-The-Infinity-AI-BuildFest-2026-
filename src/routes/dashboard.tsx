@@ -40,6 +40,9 @@ import {
   buildDoctorShareSummary,
   buildWhatsAppShareUrl,
 } from "@/lib/share-summary";
+import { reviewRecentMealPatternSafety, normalizeHealthConcerns, sanitizeClinicalSafetyText } from "@/lib/clinical-nutrition-safety";
+import { ShieldCheck, Info } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 import { PlateAnalyzer } from "@/components/PlateAnalyzer";
 import { NutritionLabel } from "@/components/NutritionLabel";
@@ -370,6 +373,28 @@ function Dashboard() {
   const p = demo ? demoProfile : (profileQ.data ?? null);
   const needsOnboarding = !p || !p.age || !p.goals || !Array.isArray(p.goals) || p.goals.length === 0;
 
+  const safetyReview = useMemo(() => {
+    if (!Array.isArray(meals)) return null;
+    return reviewRecentMealPatternSafety({
+      recentMeals: meals.slice(0, 10).map((m: MealLog) => ({
+        name: m.name,
+        mealText: m.notes || "",
+        ingredients: [],
+        nutrition: {
+          calories: m.calories ?? 0,
+          protein_g: m.protein_g ?? 0,
+          fat_g: m.fat_g ?? 0,
+          carbs_g: m.carbs_g ?? 0,
+          fiber_g: m.fiber_g ?? 0,
+          sugar_g: m.sugar_g ?? 0,
+          sodium_mg: m.sodium_mg ?? 0,
+        }
+      })),
+      healthConcerns: normalizeHealthConcerns(p),
+      isDemo: demo
+    });
+  }, [meals, p, demo]);
+
   const handleShare = () => {
     const shareData = calculateSummaryData(p, meals, demo);
     const text = buildDoctorShareSummary(shareData);
@@ -580,6 +605,38 @@ function Dashboard() {
             </ul>
           </div>
         </section>
+
+        {/* ── Nutrition Safety Notes ── */}
+        {safetyReview && safetyReview.flags.length > 0 && (
+          <section className="rounded-3xl border border-border bg-card p-5 shadow-soft">
+            <div className="flex items-center gap-1.5 text-muted-foreground mb-4">
+              <ShieldCheck className="h-5 w-5" />
+              <h3 className="font-display text-base font-semibold text-foreground">Nutrition Safety Notes</h3>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {safetyReview.flags.slice(0, 3).map((flag) => (
+                <div key={flag.id} className={cn(
+                  "rounded-2xl border p-4 flex flex-col gap-2 text-sm",
+                  flag.severity === "discuss" ? "bg-rose-500/[0.02] border-rose-500/20" :
+                  flag.severity === "caution" ? "bg-amber-500/[0.02] border-amber-500/20" :
+                  "bg-emerald-500/[0.02] border-emerald-500/20"
+                )}>
+                  <div className="flex items-center gap-2">
+                    {flag.severity === "discuss" ? <AlertTriangle className="h-4.5 w-4.5 text-rose-500" /> :
+                     flag.severity === "caution" ? <AlertTriangle className="h-4.5 w-4.5 text-amber-500" /> :
+                     <Info className="h-4.5 w-4.5 text-emerald-500" />}
+                    <span className={cn("font-bold uppercase tracking-wider text-[11px]", 
+                      flag.severity === "discuss" ? "text-rose-500" :
+                      flag.severity === "caution" ? "text-amber-600 dark:text-amber-400" :
+                      "text-emerald-600"
+                    )}>{flag.title}</span>
+                  </div>
+                  <p className="text-foreground/85 leading-relaxed text-xs">{sanitizeClinicalSafetyText(flag.message)}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* ── Care Companion Entry ── */}
         <section className="rounded-3xl border border-primary/20 bg-primary/5 p-5 shadow-soft flex flex-col md:flex-row items-center gap-4 justify-between">

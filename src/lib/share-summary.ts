@@ -1,4 +1,5 @@
 import type { MealLog } from "./meals.functions";
+import { reviewRecentMealPatternSafety, normalizeHealthConcerns, sanitizeClinicalSafetyText } from "./clinical-nutrition-safety";
 
 export interface ShareSummaryData {
   userName?: string;
@@ -11,6 +12,7 @@ export interface ShareSummaryData {
   avgFiber?: number;
   highRiskCount?: number;
   suggestions?: string[];
+  safetyNotes?: string[];
 }
 
 export function startOf7DaysAgo(): Date {
@@ -99,6 +101,27 @@ export function calculateSummaryData(
     })
     .filter((s) => s.length > 0);
 
+  const safetyReview = reviewRecentMealPatternSafety({
+    recentMeals: last7DaysMeals.map(m => ({
+      name: m.name,
+      mealText: m.notes || "",
+      ingredients: [],
+      nutrition: {
+        calories: m.calories ?? 0,
+        protein_g: m.protein_g ?? 0,
+        fat_g: m.fat_g ?? 0,
+        carbs_g: m.carbs_g ?? 0,
+        fiber_g: m.fiber_g ?? 0,
+        sugar_g: m.sugar_g ?? 0,
+        sodium_mg: m.sodium_mg ?? 0,
+      }
+    })),
+    healthConcerns: normalizeHealthConcerns(profile),
+    isDemo
+  });
+  
+  const safetyNotes = safetyReview.flags.slice(0, 3).map(f => sanitizeClinicalSafetyText(f.message));
+
   return {
     userName: profile?.full_name || profile?.display_name || "User",
     isDemo,
@@ -110,6 +133,7 @@ export function calculateSummaryData(
     avgFiber: avgFiber,
     highRiskCount,
     suggestions: cleanSuggestions.slice(0, 3),
+    safetyNotes,
   };
 }
 
@@ -146,12 +170,19 @@ High-risk meals: ${data.highRiskCount ?? 0}`;
       .join("\n") + "\n";
   }
 
+  let safetySection = "";
+  if (data.safetyNotes && data.safetyNotes.length > 0) {
+    safetySection = `\nNutrition Safety Notes:\n\n` + data.safetyNotes
+      .map((s) => `- ${s}`)
+      .join("\n") + "\n";
+  }
+
   const footer = `Note: These are estimated nutrition values for general guidance only, not medical advice.`;
 
   return `${header}
 
 ${stats}
-${suggestionsSection}
+${safetySection}${suggestionsSection}
 ${footer}`;
 }
 

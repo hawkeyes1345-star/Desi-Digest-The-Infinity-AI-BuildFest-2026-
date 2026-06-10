@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { UserCog, ArrowRight, Sparkles, Heart, Leaf, Wand2, Camera, Upload } from "lucide-react";
+import { UserCog, ArrowRight, Sparkles, Heart, Leaf, Wand2, Camera, Upload, ShieldCheck, AlertTriangle, Info, Stethoscope } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { type PlateAnalysis } from "@/lib/analyze-plate.functions";
+import { reviewMealSafety, normalizeHealthConcerns, sanitizeClinicalSafetyText } from "@/lib/clinical-nutrition-safety";
 
 function formatGoal(g: string) {
   return g
@@ -265,6 +266,13 @@ export function PlateAnalysisResult({
   const score = Math.round(analysis.healthScore);
   const confidence = getOverallConfidence(analysis);
   const validationNotes = getScanValidationNotes(analysis);
+  
+  const safetyReview = reviewMealSafety({
+    ingredients: analysis.dishes.map(d => d.name),
+    nutrition: analysis.nutrition,
+    healthConcerns: normalizeHealthConcerns({ goals: analysis.goalAlignment?.map(g => g.goal) || [] }),
+    isDemo: analysis.modelUsed === "demo-sample"
+  });
 
   return (
     <div className="space-y-4">
@@ -680,6 +688,52 @@ export function PlateAnalysisResult({
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* F2. Clinical Nutrition Safety Review */}
+      {safetyReview.flags.length > 0 && (
+        <div className="rounded-xl border border-border bg-card p-4 space-y-3 shadow-sm">
+          <div className="flex items-center gap-1.5 text-muted-foreground">
+            <ShieldCheck className="h-4.5 w-4.5" />
+            <h4 className="font-display text-xs font-bold uppercase tracking-wider font-semibold">Clinical Nutrition Safety Review</h4>
+          </div>
+          <div className="space-y-3">
+            {safetyReview.flags.slice(0, 3).map((flag) => (
+              <div key={flag.id} className={cn(
+                "rounded-lg border p-3 flex flex-col gap-1.5 text-xs",
+                flag.severity === "discuss" ? "bg-rose-500/[0.02] border-rose-500/20" :
+                flag.severity === "caution" ? "bg-amber-500/[0.02] border-amber-500/20" :
+                "bg-emerald-500/[0.02] border-emerald-500/20"
+              )}>
+                <div className="flex items-center gap-2">
+                  {flag.severity === "discuss" ? <AlertTriangle className="h-4 w-4 text-rose-500" /> :
+                   flag.severity === "caution" ? <AlertTriangle className="h-4 w-4 text-amber-500" /> :
+                   <Info className="h-4 w-4 text-emerald-500" />}
+                  <span className={cn("font-bold uppercase tracking-wider text-[10px]", 
+                    flag.severity === "discuss" ? "text-rose-500" :
+                    flag.severity === "caution" ? "text-amber-600 dark:text-amber-400" :
+                    "text-emerald-600"
+                  )}>{flag.title}</span>
+                </div>
+                <p className="text-foreground/85 leading-relaxed">{sanitizeClinicalSafetyText(flag.message)}</p>
+                {flag.suggestedSwap && (
+                  <p className="text-muted-foreground mt-0.5"><span className="font-semibold text-foreground/80">Consider:</span> {sanitizeClinicalSafetyText(flag.suggestedSwap)}</p>
+                )}
+                {flag.doctorDiscussionQuestion && (
+                  <p className="text-primary mt-1 p-1.5 rounded bg-primary/5 flex gap-1.5 items-start">
+                    <Stethoscope className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                    <span>{sanitizeClinicalSafetyText(flag.doctorDiscussionQuestion)}</span>
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+          <div className="pt-2 border-t border-border/40">
+            <p className="text-[10px] text-muted-foreground leading-relaxed">
+              {safetyReview.dataQualityNote} {safetyReview.disclaimer}
+            </p>
+          </div>
         </div>
       )}
 
