@@ -83,6 +83,67 @@ Tasfiq was the driving force behind the core architecture, backend systems, and 
    npm run dev
    ```
 
+---
+
+<!-- PRODUCT_SCREENSHOTS_START -->
+
+## Product Screenshots
+
+### Dashboard and Nutrition Overview
+
+<p align="center">
+  <img
+    src="./public/project-screenshots/dashboard.png"
+    width="48%"
+    alt="Desi Digest nutrition dashboard"
+  />
+  <img
+    src="./public/project-screenshots/plate-analysis.png"
+    width="48%"
+    alt="AI-powered Bangladeshi food plate analysis"
+  />
+</p>
+
+### AI Nutrition Assistant and Meal History
+
+<p align="center">
+  <img
+    src="./public/project-screenshots/ai-nutrition-chat.png"
+    width="48%"
+    alt="Bangla and Banglish AI nutrition assistant"
+  />
+  <img
+    src="./public/project-screenshots/meal-history.png"
+    width="48%"
+    alt="Meal logging and nutrition history"
+  />
+</p>
+
+### Personal Goals and Local Discovery
+
+<p align="center">
+  <img
+    src="./public/project-screenshots/profile-and-goals.png"
+    width="48%"
+    alt="Personal nutrition goals and profile"
+  />
+  <img
+    src="./public/project-screenshots/shops-near-you.png"
+    width="48%"
+    alt="Nearby healthy food shop discovery"
+  />
+</p>
+
+### Responsive Experience
+
+<p align="center">
+  <img
+    src="./public/project-screenshots/mobile-responsive-view.png"
+    width="70%"
+    alt="Desi Digest responsive mobile experience"
+  />
+</p>
+
 ## ⚠️ Medical Disclaimer
 
 Desi Digest provides general nutrition education and meal-tracking support. It is **not** a medical diagnosis tool, treatment plan, or replacement for a licensed physician or registered dietitian. Users with specific medical conditions should consult a qualified professional before making health decisions.
